@@ -13,6 +13,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     """
     # private
     __pca: PCA
+    __std_scalar: StandardScaler
+    __normalizer: Normalizer
 
     # public:
     n_clusters: int
@@ -54,5 +56,13 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.tol = tol
         self.copy = copy
         self.__pca = PCA(n_components=n_components, copy=copy, whiten=whiten)
+        if standarize:
+            self.__std_scalar = StandardScaler(copy=copy)
+        else:
+            self.__std_scalar = None
+        if normalize:
+            self.__normalizer = Normalizer(copy=copy)
+        else:
+            self.__normalizer = None
 
     pass

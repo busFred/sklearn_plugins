@@ -106,8 +106,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     def fit(self, X: np.ndarray) -> "SphericalKMeans":
         """Compute k-means clustering.
 
-        
-
         Args:
             X (np.ndarray): (n_samples, n_features) Training instances to cluster. It must be noted that the data will be converted to C ordering, which will cause a memory copy if the given data is not C-contiguous. If a sparse matrix is passed, a copy will be made if it’s not in CSR format.
         
@@ -124,9 +122,19 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         X = self._pca_.fit_transform(X)
         # configure dimension
         self.__n_samples, self.__n_components = X.shape
-        # start k-means 
-         
-
+        # start k-means
+        self.__init_centroids()
+        avg_centoids_shift: float = np.inf
+        iter: int = 0
+        while iter < self.max_iter and avg_centoids_shift < self.tol:
+            # centroid.shape = (n_components, n_clusters)
+            prev_centroids: np.ndarray = np.copy(self.__centroids)
+            self.__update_centroids(X)
+            centroids_shift: np.ndarray = np.linalg.norm(prev_centroids -
+                                                         self.__centroids,
+                                                         axis=0)
+            avg_centoids_shift: float = np.mean(centroids_shift)
+            iter = iter + 1
         return self
 
     # private
@@ -140,6 +148,25 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.__centroids = random_state.standard_normal(
             size=[self.__n_components, self.n_clusters])
         # normalize to unit length
+        self.__centroids, _ = normalize(self.__centroids,
+                                        axis=0,
+                                        norm="l2",
+                                        copy=False)
+
+    def __update_centroids(self, X: np.ndarray):
+        # centroid.shape = (n_components, n_clusters)
+        # X.shape = (n_samples, n_components)
+        # S_proj.shpae = (n_samples, cluster) each sample's projection on each cluster
+        S_proj: np.ndarray = np.matmul(X, self.__centroids)
+        cluster_index: np.ndarray = np.argmax(S_proj, axis=1)
+        # S_code.shpae = (n_samples, cluster)
+        S_code: np.ndarray = np.zeros_like(S_proj)
+        S_code[np.arange(self.__n_samples),
+               cluster_index] = S_proj[np.arange(self.__n_samples),
+                                       cluster_index]
+        # update centroids
+        self.__centroids = np.matmul(X.transpose(), S_code) + self.__centroids
+        # normalize centroids
         self.__centroids, _ = normalize(self.__centroids,
                                         axis=0,
                                         norm="l2",

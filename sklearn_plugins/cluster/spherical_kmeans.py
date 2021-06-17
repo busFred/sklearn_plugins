@@ -3,12 +3,11 @@
 from typing import Union
 
 import numpy as np
-from numpy import copy, random
+from numpy import random
 from numpy.random import RandomState
 from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from sklearn.utils import check_random_state
 from sklearn.preprocessing import normalize
 
 __author__ = "Hung-Tien Huang"
@@ -140,7 +139,9 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
 
     def predict(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
         X = self.__preprocess_input(X, is_train=False, copy=copy)
-        pass
+        S_proj: np.ndarray = np.matmul(X, self.__centroids)
+        labels: np.ndarray = np.argmax(S_proj, axis=1)
+        return labels
 
     # private
     def __init_centroids(self):
@@ -198,12 +199,11 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # X.shape = (n_samples, n_components)
         # S_proj.shpae = (n_samples, cluster) each sample's projection on each cluster
         S_proj: np.ndarray = np.matmul(X, self.__centroids)
-        cluster_index: np.ndarray = np.argmax(S_proj, axis=1)
+        labels: np.ndarray = np.argmax(S_proj, axis=1)
         # S_code.shpae = (n_samples, cluster)
         S_code: np.ndarray = np.zeros_like(S_proj)
         S_code[np.arange(self.__n_samples),
-               cluster_index] = S_proj[np.arange(self.__n_samples),
-                                       cluster_index]
+               labels] = S_proj[np.arange(self.__n_samples), labels]
         # update centroids
         self.__centroids = np.matmul(X.transpose(), S_code) + self.__centroids
         # normalize centroids

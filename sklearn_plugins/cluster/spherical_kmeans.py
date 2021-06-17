@@ -102,11 +102,12 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.__n_components = -1
         self.__n_samples = -1
 
-    def fit(self, X: np.ndarray) -> "SphericalKMeans":
+    def fit(self, X: np.ndarray, y=None) -> "SphericalKMeans":
         """Compute k-means clustering.
 
         Args:
             X (np.ndarray): (n_samples, n_features) Training instances to cluster. It must be noted that the data will be converted to C ordering, which will cause a memory copy if the given data is not C-contiguous. If a sparse matrix is passed, a copy will be made if it’s not in CSR format.
+            y (Ignored): Not used, present here for API consistency by convention.
         
         Returns:
             self (SphericalKMeans): Fitted estimator
@@ -136,6 +137,43 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             avg_centoids_shift: float = np.mean(centroids_shift)
             iter = iter + 1
         return self
+
+    def fit_predict(self, X: np.ndarray, y=None) -> np.ndarray:
+        """Compute cluster centers and predict cluster index for each sample.
+
+        Convenience method; equivalent to calling `fit(X)` followed by `predict(X)`.
+
+        Args:
+            X (np.ndarray): New data to transform.
+            y (Ignored): Not used, present here for API consistency by convention.
+
+        Returns:
+            labels (np.ndarray): Index of the cluster each sample belongs to.
+        """
+        self.fit(X)
+        if self.copy:
+            S_proj: np.ndarray = np.matmul(X, self.__centroids)
+            labels: np.ndarray = np.argmax(S_proj, axis=1)
+            return labels
+        return self.predict(X, copy=False)
+
+    def fit_transform(self, X, y):
+        """Compute clustering and transform X to cluster-distance space.
+
+        Convenience method; equivalent to calling `fit(X)` followed by `transform(X)`.
+
+        Args:
+            X (np.ndarray): New data to transform.
+            y (Ignored): Not used, present here for API consistency by convention.
+
+        Returns:
+            S_proj (np.ndarray): X transformed in the new space.
+        """
+        self.fit(X)
+        if self.copy:
+            S_proj: np.ndarray = np.matmul(X, self.copy)
+            return S_proj
+        return self.transform(X, copy=False)
 
     def predict(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
         """Predict the closest cluster each sample in X belongs to.

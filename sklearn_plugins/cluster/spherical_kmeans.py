@@ -112,14 +112,15 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         Returns:
             self (SphericalKMeans): Fitted estimator
         """
-        # features of each sample has zero mean and unit variance; data-point level
-        if self.normalize:
-            X, _ = normalize(X, norm="l2", axis=1, copy=self.copy)
-        # each features in the dataset has zero mean and unit variance; dataset level
-        if self.standarize:
-            X = self._std_scalar_.fit_transform(X)
-        # PCA whiten
-        X = self._pca_.fit_transform(X)
+        # # features of each sample has zero mean and unit variance; data-point level
+        # if self.normalize:
+        #     X, _ = normalize(X, norm="l2", axis=1, copy=self.copy)
+        # # each features in the dataset has zero mean and unit variance; dataset level
+        # if self.standarize:
+        #     X = self._std_scalar_.fit_transform(X)
+        # # PCA whiten
+        # X = self._pca_.fit_transform(X)
+        X = self.__preprocess_input(X, is_train=True)
         # configure dimension
         self.__n_samples, self.__n_components = X.shape
         # start k-means
@@ -137,6 +138,10 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             iter = iter + 1
         return self
 
+    def predict(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
+        X = self.__preprocess_input(X, is_train=False, copy=copy)
+        pass
+
     # private
     def __init_centroids(self):
         """Initialize the centroids
@@ -153,7 +158,42 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
                                         norm="l2",
                                         copy=False)
 
+    def __preprocess_input(self,
+                           X: np.ndarray,
+                           is_train: bool = False,
+                           copy: bool = True) -> np.ndarray:
+        """Preprocess Input
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) raw input data
+            is_train (bool, optional): If true, call fit_transform(X) on std_scalar and pca. Otherwise, call std_scalar_.fit(X, copy=copy). Defaults to False.
+            copy (bool, optional): Whether or not to modify in-place during inference call. Defaults to True.
+
+        Returns:
+            X (np.ndarray): (n_samples, n_components) preprocessed input
+        """
+        # features of each sample has zero mean and unit variance; data-point level
+        if self.normalize:
+            X, _ = normalize(X, norm="l2", axis=1, copy=self.copy)
+        # each features in the dataset has zero mean and unit variance; dataset level
+        if self.standarize:
+            if is_train == False:
+                X = self._std_scalar_.transform(X, copy=copy)
+            else:
+                X = self._std_scalar_.fit_transform(X)
+        # PCA whiten
+        if is_train == False:
+            X = self._pca_.transform(X)
+        else:
+            X = self._pca_.fit_transform(X)
+        return X
+
     def __update_centroids(self, X: np.ndarray):
+        """Update Centroids
+
+        Args:
+            X (np.ndarray): (n_samples, n_components)
+        """
         # centroid.shape = (n_components, n_clusters)
         # X.shape = (n_samples, n_components)
         # S_proj.shpae = (n_samples, cluster) each sample's projection on each cluster

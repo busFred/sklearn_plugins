@@ -1,6 +1,6 @@
 """Implementation of Spherical K-Means Clusting that is compatible with sklearn.
 """
-from typing import Union
+from typing import Tuple, Union
 
 import numpy as np
 from numpy import random
@@ -53,11 +53,10 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     # protected
     _pca_: PCA
     _std_scalar_: StandardScaler
-
-    # private
-    __centroids: np.ndarray
-    __n_components: int
-    __n_samples: int
+    _centroids_: np.ndarray
+    _n_components_: int
+    _n_samples_: int
+    _inertia_: float
 
     def __init__(self,
                  n_clusters: int = 500,
@@ -98,9 +97,10 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         else:
             self._std_scalar_ = None
         # private attributes
-        self.__centroids = None
-        self.__n_components = -1
-        self.__n_samples = -1
+        self._centroids_ = None
+        self._n_components_ = -1
+        self._n_samples_ = -1
+        self._inertia_ = 0.0
 
     def fit(self, X: np.ndarray, y=None) -> "SphericalKMeans":
         """Compute k-means clustering.
@@ -122,20 +122,22 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # X = self._pca_.fit_transform(X)
         X = self.__preprocess_input(X, is_train=True)
         # configure dimension
-        self.__n_samples, self.__n_components = X.shape
+        self._n_samples_, self._n_components_ = X.shape
         # start k-means
         self.__init_centroids()
         avg_centoids_shift: float = np.inf
         iter: int = 0
         while iter < self.max_iter and avg_centoids_shift < self.tol:
             # centroid.shape = (n_components, n_clusters)
-            prev_centroids: np.ndarray = np.copy(self.__centroids)
+            prev_centroids: np.ndarray = np.copy(self._centroids_)
             self.__update_centroids(X)
             centroids_shift: np.ndarray = np.linalg.norm(prev_centroids -
-                                                         self.__centroids,
+                                                         self._centroids_,
                                                          axis=0)
             avg_centoids_shift: float = np.mean(centroids_shift)
             iter = iter + 1
+        _, labels = self.__calculate_projections_labels(X)
+        self._inertia_ = self.__calculate_inertia(X, labels)
         return self
 
     def fit_predict(self, X: np.ndarray, y=None) -> np.ndarray:
@@ -152,8 +154,9 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         """
         self.fit(X)
         if self.copy:
-            S_proj: np.ndarray = np.matmul(X, self.__centroids)
-            labels: np.ndarray = np.argmax(S_proj, axis=1)
+            # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
+            # labels: np.ndarray = np.argmax(S_proj, axis=1)
+            _, labels = self.__calculate_projections_labels(X)
             return labels
         return self.predict(X, copy=False)
 
@@ -171,7 +174,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         """
         self.fit(X)
         if self.copy:
-            S_proj: np.ndarray = np.matmul(X, self.copy)
+            S_proj: np.ndarray = self.__calculate_projections(X)
             return S_proj
         return self.transform(X, copy=False)
 
@@ -186,8 +189,9 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             labels (np.ndarray): (n_samples) Index of the cluster each sample belongs to.
         """
         X = self.__preprocess_input(X, is_train=False, copy=copy)
-        S_proj: np.ndarray = np.matmul(X, self.__centroids)
-        labels: np.ndarray = np.argmax(S_proj, axis=1)
+        # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
+        # labels: np.ndarray = np.argmax(S_proj, axis=1)
+        _, labels = self.__calculate_projections_labels(X)
         return labels
 
     def transform(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
@@ -201,7 +205,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             S_proj (np.ndarray): X transformed in the new space.
         """
         X = self.__preprocess_input(X, is_train=False, copy=copy)
-        S_proj: np.ndarray = np.matmul(X, self.__centroids)
+        S_proj = self.__calculate_projections(X)
+        # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
         return S_proj
 
     # private
@@ -212,10 +217,10 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         """
         random_state: RandomState = self.random_state
         # initialize from standard normal
-        self.__centroids = random_state.standard_normal(
-            size=[self.__n_components, self.n_clusters])
+        self._centroids_ = random_state.standard_normal(
+            size=[self._n_components_, self.n_clusters])
         # normalize to unit length
-        self.__centroids, _ = normalize(self.__centroids,
+        self._centroids_, _ = normalize(self._centroids_,
                                         axis=0,
                                         norm="l2",
                                         copy=False)
@@ -256,19 +261,57 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         Args:
             X (np.ndarray): (n_samples, n_components)
         """
-        # centroid.shape = (n_components, n_clusters)
-        # X.shape = (n_samples, n_components)
-        # S_proj.shpae = (n_samples, n_clusters) each sample's projection on each cluster
-        S_proj: np.ndarray = np.matmul(X, self.__centroids)
-        labels: np.ndarray = np.argmax(S_proj, axis=1)
+        # # centroid.shape = (n_components, n_clusters)
+        # # X.shape = (n_samples, n_components)
+        # # S_proj.shpae = (n_samples, n_clusters) each sample's projection on each cluster
+        # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
+        # labels: np.ndarray = np.argmax(S_proj, axis=1)
+        S_proj, labels = self.__calculate_projections_labels(X)
         # S_code.shpae = (n_samples, cluster)
         S_code: np.ndarray = np.zeros_like(S_proj)
-        S_code[np.arange(self.__n_samples),
-               labels] = S_proj[np.arange(self.__n_samples), labels]
+        S_code[np.arange(self._n_samples_),
+               labels] = S_proj[np.arange(self._n_samples_), labels]
         # update centroids
-        self.__centroids = np.matmul(X.transpose(), S_code) + self.__centroids
+        self._centroids_ = np.matmul(X.transpose(), S_code) + self._centroids_
         # normalize centroids
-        self.__centroids, _ = normalize(self.__centroids,
+        self._centroids_, _ = normalize(self._centroids_,
                                         axis=0,
                                         norm="l2",
                                         copy=False)
+
+    def __calculate_projections(self, X: np.ndarray) -> np.ndarray:
+        """Project X onto self._centroids_.
+
+        Args:
+            X (np.ndarray): (n_samples, n_components) New Data to transform
+
+        Returns:
+            S_proj (np.ndarray): (n_samples, n_clusters) Input X's projection onto dictionary
+        """
+        S_proj: np.ndarray = np.matmul(X, self._centroids_)
+        return S_proj
+
+    def __calculate_projections_labels(
+            self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Given X, calculate projection onto self._centoids and infer cluster label
+
+        Args:
+            X (np.ndarray): (n_samples, n_components) New Data to transform
+
+        Returns:
+            S_proj (np.ndarray): (n_samples, n_clusters) Input X's projection onto dictionary
+            labels (np.ndarray): (n_samples) The cluster labels that X is assigned to
+        """
+        # centroid.shape = (n_components, n_clusters)
+        # X.shape = (n_samples, n_components)
+        # S_proj.shpae = (n_samples, n_clusters) each sample's projection on each cluster
+        S_proj: np.ndarray = self.__calculate_projections(X)
+        labels: np.ndarray = np.argmax(S_proj, axis=1)
+        return S_proj, labels
+
+    def __calculate_inertia(self, X: np.ndarray, labels: np.ndarray) -> float:
+        X_distance: np.ndarray = np.linalg.norm(np.transpose(X) -
+                                                self._centroids_[:, labels],
+                                                axis=0)
+        inertia: float = np.sum(X_distance)
+        return inertia

@@ -138,10 +138,33 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         return self
 
     def predict(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
+        """Predict the closest cluster each sample in X belongs to.
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) New data to predict.
+            copy (bool, optional): Whether or not to modify in-place during inference call. Defaults to True.
+
+        Returns:
+            labels (np.ndarray): (n_samples) Index of the cluster each sample belongs to.
+        """
         X = self.__preprocess_input(X, is_train=False, copy=copy)
         S_proj: np.ndarray = np.matmul(X, self.__centroids)
         labels: np.ndarray = np.argmax(S_proj, axis=1)
         return labels
+
+    def transform(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
+        """Transform X to a cluster-distance space.
+
+        Args:
+            X (np.ndarray): New data to transform.
+            copy (bool, optional): Whether or not to modify in-place during inference call. Defaults to True.
+
+        Returns:
+            S_proj (np.ndarray): X transformed in the new space.
+        """
+        X = self.__preprocess_input(X, is_train=False, copy=copy)
+        S_proj: np.ndarray = np.matmul(X, self.__centroids)
+        return S_proj
 
     # private
     def __init_centroids(self):
@@ -197,7 +220,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         """
         # centroid.shape = (n_components, n_clusters)
         # X.shape = (n_samples, n_components)
-        # S_proj.shpae = (n_samples, cluster) each sample's projection on each cluster
+        # S_proj.shpae = (n_samples, n_clusters) each sample's projection on each cluster
         S_proj: np.ndarray = np.matmul(X, self.__centroids)
         labels: np.ndarray = np.argmax(S_proj, axis=1)
         # S_code.shpae = (n_samples, cluster)

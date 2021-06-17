@@ -120,7 +120,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         #     X = self._std_scalar_.fit_transform(X)
         # # PCA whiten
         # X = self._pca_.fit_transform(X)
-        X = self.__preprocess_input(X, is_train=True)
+        X = self.__preprocess_input(X, is_train=True, copy=self.copy)
         # configure dimension
         self._n_samples_, self._n_components_ = X.shape
         # start k-means
@@ -153,12 +153,12 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             labels (np.ndarray): Index of the cluster each sample belongs to.
         """
         self.fit(X)
-        if self.copy:
+        if self.copy == False:
             # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
             # labels: np.ndarray = np.argmax(S_proj, axis=1)
             _, labels = self.__calculate_projections_labels(X)
             return labels
-        return self.predict(X, copy=False)
+        return self.predict(X, copy=self.copy)
 
     def fit_transform(self, X, y):
         """Compute clustering and transform X to cluster-distance space.
@@ -173,10 +173,10 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             S_proj (np.ndarray): X transformed in the new space.
         """
         self.fit(X)
-        if self.copy:
+        if self.copy == False:
             S_proj: np.ndarray = self.__calculate_projections(X)
             return S_proj
-        return self.transform(X, copy=False)
+        return self.transform(X, copy=self.copy)
 
     def predict(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
         """Predict the closest cluster each sample in X belongs to.
@@ -209,7 +209,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
         return S_proj
 
-    def score(self, X: np.ndarray):
+    def score(self, X: np.ndarray, copy: bool = True):
         """Opposite of the sum of squared distances of samples to their closest cluster center.
 
         Args:
@@ -218,7 +218,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         Returns:
             score float: -1 * inertia
         """
-        X = self.__preprocess_input(X)
+        X = self.__preprocess_input(X, is_train=False, copy=copy)
         _, labels = self.__calculate_projections_labels(X)
         inertia: float = self.__calculate_inertia(X, labels)
         return -1.0 * inertia
@@ -324,8 +324,17 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         return S_proj, labels
 
     def __calculate_inertia(self, X: np.ndarray, labels: np.ndarray) -> float:
+        """Calculate inertia
+
+        Args:
+            X (np.ndarray): (n_samples, n_components) New data to transform.
+            labels (np.ndarray): The cluster labels that X is assigned to
+
+        Returns:
+            inertia (float): The sum of squared distances of samples to their closest cluster center.
+        """
         X_distance: np.ndarray = np.linalg.norm(np.transpose(X) -
                                                 self._centroids_[:, labels],
                                                 axis=0)
-        inertia: float = np.sum(X_distance)
+        inertia: float = np.sum(np.square(X_distance))
         return inertia

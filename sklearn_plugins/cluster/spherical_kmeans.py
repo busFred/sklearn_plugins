@@ -209,6 +209,20 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
         return S_proj
 
+    def score(self, X: np.ndarray):
+        """Opposite of the sum of squared distances of samples to their closest cluster center.
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) raw input data
+
+        Returns:
+            score float: -1 * inertia
+        """
+        X = self.__preprocess_input(X)
+        _, labels = self.__calculate_projections_labels(X)
+        inertia: float = self.__calculate_inertia(X, labels)
+        return -1.0 * inertia
+
     # private
     def __init_centroids(self):
         """Initialize the centroids

@@ -131,20 +131,20 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # configure dimension
         self.__n_samples_, self.__n_components_ = X.shape
         # start k-means
-        self.__init_centroids()
+        self.__centroids_ = self.__init_centroids()
         avg_centoids_shift: float = np.inf
         iter: int = 0
         while iter < self.max_iter and avg_centoids_shift > self.tol:
             # centroid.shape = (n_components, n_clusters)
             prev_centroids: np.ndarray = np.copy(self.__centroids_)
-            self.__update_centroids(X)
+            self.__centroids_ = self.__update_centroids(X, self.__centroids_)
             centroids_shift: np.ndarray = np.linalg.norm(prev_centroids -
                                                          self.__centroids_,
                                                          axis=0)
             avg_centoids_shift: float = np.mean(centroids_shift)
             iter = iter + 1
-        _, labels = self.__calculate_projections_labels(X)
-        self.__inertia_ = self.__calculate_inertia(X, labels)
+        _, labels = self.__calculate_projections_labels(X, self.__centroids_)
+        self.__inertia_ = self.__calculate_inertia(X, labels, self.__centroids_)
         return self
 
     def fit_predict(self, X: np.ndarray, y=None) -> np.ndarray:
@@ -163,7 +163,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         if self.copy == False:
             # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
             # labels: np.ndarray = np.argmax(S_proj, axis=1)
-            _, labels = self.__calculate_projections_labels(X)
+            _, labels = self.__calculate_projections_labels(
+                X, self.__centroids_)
             return labels
         return self.predict(X, copy=self.copy)
 
@@ -181,7 +182,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         """
         self.fit(X)
         if self.copy == False:
-            S_proj: np.ndarray = self.__calculate_projections(X)
+            S_proj: np.ndarray = self.__calculate_projections(
+                X, self.__centroids_)
             return S_proj
         return self.transform(X, copy=self.copy)
 
@@ -198,7 +200,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         X = self.__preprocess_input(X, is_train=False, copy=copy)
         # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
         # labels: np.ndarray = np.argmax(S_proj, axis=1)
-        _, labels = self.__calculate_projections_labels(X)
+        _, labels = self.__calculate_projections_labels(X, self.__centroids_)
         return labels
 
     def transform(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
@@ -212,7 +214,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             S_proj (np.ndarray): (n_samples, n_features) X transformed in the new space.
         """
         X = self.__preprocess_input(X, is_train=False, copy=copy)
-        S_proj = self.__calculate_projections(X)
+        S_proj = self.__calculate_projections(X, self.__centroids_)
         # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
         return S_proj
 
@@ -226,8 +228,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             score float: -1 * inertia
         """
         X = self.__preprocess_input(X, is_train=False, copy=copy)
-        _, labels = self.__calculate_projections_labels(X)
-        inertia: float = self.__calculate_inertia(X, labels)
+        _, labels = self.__calculate_projections_labels(X, self.__centroids_)
+        inertia: float = self.__calculate_inertia(X, labels, self.__centroids_)
         return -1.0 * inertia
 
     def preprocess_input(self, X: np.ndarray, copy=True) -> np.ndarray:
@@ -268,20 +270,18 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         return self.__inertia_
 
     # private
-    def __init_centroids(self):
+    def __init_centroids(self) -> np.ndarray:
         """Initialize the centroids
 
         Randomly initialize the centoids from a standard normal distribution and then normalize to unit length.
         """
         random_state: RandomState = RandomState()
         # initialize from standard normal
-        self.__centroids_ = random_state.standard_normal(
+        centroids: np.ndarray = random_state.standard_normal(
             size=[self.__n_components_, self.n_clusters])
         # normalize to unit length
-        self.__centroids_ = normalize(self.__centroids_,
-                                      axis=0,
-                                      norm="l2",
-                                      copy=False)
+        centroids = normalize(centroids, axis=0, norm="l2", copy=False)
+        return centroids
 
     def __preprocess_input(self,
                            X: np.ndarray,
@@ -313,48 +313,55 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             X = self._pca_.fit_transform(X)
         return X
 
-    def __update_centroids(self, X: np.ndarray):
+    def __update_centroids(self, X: np.ndarray,
+                           centroids: np.ndarray) -> np.ndarray:
         """Update Centroids
 
         Args:
             X (np.ndarray): (n_samples, n_components)
+            centroids (np.ndarray): (n_components, n_clusters)
+
+        Returns:
+            centroids (np.ndarray): 
         """
         # # centroid.shape = (n_components, n_clusters)
         # # X.shape = (n_samples, n_components)
         # # S_proj.shpae = (n_samples, n_clusters) each sample's projection on each cluster
         # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
         # labels: np.ndarray = np.argmax(S_proj, axis=1)
-        S_proj, labels = self.__calculate_projections_labels(X)
+        S_proj, labels = self.__calculate_projections_labels(X, centroids)
         # S_code.shpae = (n_samples, cluster)
         S_code: np.ndarray = np.zeros_like(S_proj)
         S_code[np.arange(self.__n_samples_),
                labels] = S_proj[np.arange(self.__n_samples_), labels]
         # update centroids
-        self.__centroids_ = np.matmul(X.transpose(), S_code) + self.__centroids_
+        centroids = np.matmul(X.transpose(), S_code) + centroids
         # normalize centroids
-        self.__centroids_ = normalize(self.__centroids_,
-                                      axis=0,
-                                      norm="l2",
-                                      copy=False)
+        centroids = normalize(centroids, axis=0, norm="l2", copy=False)
+        return centroids
 
-    def __calculate_projections(self, X: np.ndarray) -> np.ndarray:
+    def __calculate_projections(self, X: np.ndarray,
+                                centroids: np.ndarray) -> np.ndarray:
         """Project X onto self._centroids_.
 
         Args:
             X (np.ndarray): (n_samples, n_components) New Data to transform
+            centroids (np.ndarray): (n_components, n_clusters)
 
         Returns:
             S_proj (np.ndarray): (n_samples, n_clusters) Input X's projection onto dictionary
         """
-        S_proj: np.ndarray = np.matmul(X, self.__centroids_)
+        S_proj: np.ndarray = np.matmul(X, centroids)
         return S_proj
 
     def __calculate_projections_labels(
-            self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+            self, X: np.ndarray,
+            centroids: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Given X, calculate projection onto self._centoids and infer cluster label
 
         Args:
             X (np.ndarray): (n_samples, n_components) New Data to transform
+            centroids (np.ndarray): (n_components, n_clusters)
 
         Returns:
             S_proj (np.ndarray): (n_samples, n_clusters) Input X's projection onto dictionary
@@ -363,11 +370,12 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # centroid.shape = (n_components, n_clusters)
         # X.shape = (n_samples, n_components)
         # S_proj.shpae = (n_samples, n_clusters) each sample's projection on each cluster
-        S_proj: np.ndarray = self.__calculate_projections(X)
+        S_proj: np.ndarray = self.__calculate_projections(X, centroids)
         labels: np.ndarray = np.argmax(S_proj, axis=1)
         return S_proj, labels
 
-    def __calculate_inertia(self, X: np.ndarray, labels: np.ndarray) -> float:
+    def __calculate_inertia(self, X: np.ndarray, labels: np.ndarray,
+                            centroids: np.ndarray) -> float:
         """Calculate inertia
 
         Args:
@@ -378,7 +386,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             inertia (float): The sum of squared distances of samples to their closest cluster center.
         """
         X_distance: np.ndarray = np.linalg.norm(np.transpose(X) -
-                                                self.__centroids_[:, labels],
+                                                centroids[:, labels],
                                                 axis=0)
         inertia: float = np.sum(np.square(X_distance))
         return inertia

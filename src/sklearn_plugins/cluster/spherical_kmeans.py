@@ -1,6 +1,6 @@
 """Implementation of Spherical K-Means Clusting that is compatible with sklearn.
 """
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 from numpy import random
@@ -125,8 +125,16 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # configure dimension
         self.__n_samples_, self.__n_components_ = X.shape
         # start k-means
-        self.__centroids_, self.__inertia_ = self.__single_k_means_fit(
-            X, self.random_state)
+        centroids_list: List[np.ndarray] = list()
+        inertia_list: List[float] = list()
+        for _ in range(0, self.n_init):
+            curr_centroids, curr_inertia = self.__single_k_means_fit(
+                X, self.random_state)
+            centroids_list.append(curr_centroids)
+            inertia_list.append(curr_inertia)
+        idx_max: int = np.argmin(inertia_list)
+        self.__inertia_ = inertia_list[idx_max]
+        self.__centroids_ = centroids_list[idx_max]
         return self
 
     def fit_predict(self, X: np.ndarray, y=None) -> np.ndarray:

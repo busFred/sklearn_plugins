@@ -9,6 +9,7 @@ from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import normalize
+from sklearn.utils import check_random_state
 import copy
 
 __author__ = "Hung-Tien Huang"
@@ -119,32 +120,28 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         Returns:
             self (SphericalKMeans): Fitted estimator
         """
-        # # features of each sample has zero mean and unit variance; data-point level
-        # if self.normalize:
-        #     X, _ = normalize(X, norm="l2", axis=1, copy=self.copy)
-        # # each features in the dataset has zero mean and unit variance; dataset level
-        # if self.standarize:
-        #     X = self._std_scalar_.fit_transform(X)
-        # # PCA whiten
-        # X = self._pca_.fit_transform(X)
+        # preprocess input
         X = self.__preprocess_input(X, is_train=True, copy=self.copy)
         # configure dimension
         self.__n_samples_, self.__n_components_ = X.shape
         # start k-means
-        self.__centroids_ = self.__init_centroids()
-        avg_centoids_shift: float = np.inf
-        iter: int = 0
-        while iter < self.max_iter and avg_centoids_shift > self.tol:
-            # centroid.shape = (n_components, n_clusters)
-            prev_centroids: np.ndarray = np.copy(self.__centroids_)
-            self.__centroids_ = self.__update_centroids(X, self.__centroids_)
-            centroids_shift: np.ndarray = np.linalg.norm(prev_centroids -
-                                                         self.__centroids_,
-                                                         axis=0)
-            avg_centoids_shift: float = np.mean(centroids_shift)
-            iter = iter + 1
-        _, labels = self.__calculate_projections_labels(X, self.__centroids_)
-        self.__inertia_ = self.__calculate_inertia(X, labels, self.__centroids_)
+        self.__centroids_, self.__inertia_ = self.__single_k_means_fit(
+            X, self.random_state)
+        # self.__centroids_ = self.__init_centroids(
+        #     check_random_state(self.random_state))
+        # avg_centoids_shift: float = np.inf
+        # iter: int = 0
+        # while iter < self.max_iter and avg_centoids_shift > self.tol:
+        #     # centroid.shape = (n_components, n_clusters)
+        #     prev_centroids: np.ndarray = np.copy(self.__centroids_)
+        #     self.__centroids_ = self.__update_centroids(X, self.__centroids_)
+        #     centroids_shift: np.ndarray = np.linalg.norm(prev_centroids -
+        #                                                  self.__centroids_,
+        #                                                  axis=0)
+        #     avg_centoids_shift: float = np.mean(centroids_shift)
+        #     iter = iter + 1
+        # _, labels = self.__calculate_projections_labels(X, self.__centroids_)
+        # self.__inertia_ = self.__calculate_inertia(X, labels, self.__centroids_)
         return self
 
     def fit_predict(self, X: np.ndarray, y=None) -> np.ndarray:
@@ -270,12 +267,11 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         return self.__inertia_
 
     # private
-    def __init_centroids(self) -> np.ndarray:
+    def __init_centroids(self, random_state: RandomState) -> np.ndarray:
         """Initialize the centroids
 
         Randomly initialize the centoids from a standard normal distribution and then normalize to unit length.
         """
-        random_state: RandomState = RandomState()
         # initialize from standard normal
         centroids: np.ndarray = random_state.standard_normal(
             size=[self.__n_components_, self.n_clusters])
@@ -319,7 +315,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
 
         Args:
             X (np.ndarray): (n_samples, n_components)
-            centroids (np.ndarray): (n_components, n_clusters)
+            centroids (np.ndarray): (n_components, n_clusters) Centroids used to calculate inertia.
 
         Returns:
             centroids (np.ndarray): 
@@ -327,8 +323,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # # centroid.shape = (n_components, n_clusters)
         # # X.shape = (n_samples, n_components)
         # # S_proj.shpae = (n_samples, n_clusters) each sample's projection on each cluster
-        # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
-        # labels: np.ndarray = np.argmax(S_proj, axis=1)
         S_proj, labels = self.__calculate_projections_labels(X, centroids)
         # S_code.shpae = (n_samples, cluster)
         S_code: np.ndarray = np.zeros_like(S_proj)
@@ -346,7 +340,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
 
         Args:
             X (np.ndarray): (n_samples, n_components) New Data to transform
-            centroids (np.ndarray): (n_components, n_clusters)
+            centroids (np.ndarray): (n_components, n_clusters) Centroids used to project input data.
 
         Returns:
             S_proj (np.ndarray): (n_samples, n_clusters) Input X's projection onto dictionary
@@ -361,7 +355,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
 
         Args:
             X (np.ndarray): (n_samples, n_components) New Data to transform
-            centroids (np.ndarray): (n_components, n_clusters)
+            centroids (np.ndarray): (n_components, n_clusters) Centroids used to project input data.
 
         Returns:
             S_proj (np.ndarray): (n_samples, n_clusters) Input X's projection onto dictionary
@@ -380,7 +374,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
 
         Args:
             X (np.ndarray): (n_samples, n_components) New data to transform.
-            labels (np.ndarray): The cluster labels that X is assigned to
+            labels (np.ndarray): (n_samples) The cluster labels that X is assigned to.
+            centroids (np.ndarray): (n_components, n_clusters) Centroids used to calculate inertia.
 
         Returns:
             inertia (float): The sum of squared distances of samples to their closest cluster center.
@@ -390,3 +385,21 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
                                                 axis=0)
         inertia: float = np.sum(np.square(X_distance))
         return inertia
+
+    def __single_k_means_fit(self, X: np.ndarray,
+                             random_state: Union[int, RandomState, None]):
+        centroids = self.__init_centroids(check_random_state(self.random_state))
+        avg_centoids_shift: float = np.inf
+        iter: int = 0
+        while iter < self.max_iter and avg_centoids_shift > self.tol:
+            # centroid.shape = (n_components, n_clusters)
+            prev_centroids: np.ndarray = np.copy(centroids)
+            centroids = self.__update_centroids(X, centroids)
+            centroids_shift: np.ndarray = np.linalg.norm(prev_centroids -
+                                                         centroids,
+                                                         axis=0)
+            avg_centoids_shift: float = np.mean(centroids_shift)
+            iter = iter + 1
+        _, labels = self.__calculate_projections_labels(X, centroids)
+        inertia: float = self.__calculate_inertia(X, labels, centroids)
+        return centroids, inertia

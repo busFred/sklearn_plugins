@@ -1,5 +1,6 @@
 """Implementation of Spherical K-Means Clusting that is compatible with sklearn.
 """
+import copy
 from typing import List, Tuple, Union
 
 import numpy as np
@@ -7,10 +8,8 @@ from numpy import random
 from numpy.random import RandomState
 from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.utils import check_random_state
-import copy
 
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"

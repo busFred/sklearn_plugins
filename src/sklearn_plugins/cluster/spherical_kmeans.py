@@ -127,21 +127,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # start k-means
         self.__centroids_, self.__inertia_ = self.__single_k_means_fit(
             X, self.random_state)
-        # self.__centroids_ = self.__init_centroids(
-        #     check_random_state(self.random_state))
-        # avg_centoids_shift: float = np.inf
-        # iter: int = 0
-        # while iter < self.max_iter and avg_centoids_shift > self.tol:
-        #     # centroid.shape = (n_components, n_clusters)
-        #     prev_centroids: np.ndarray = np.copy(self.__centroids_)
-        #     self.__centroids_ = self.__update_centroids(X, self.__centroids_)
-        #     centroids_shift: np.ndarray = np.linalg.norm(prev_centroids -
-        #                                                  self.__centroids_,
-        #                                                  axis=0)
-        #     avg_centoids_shift: float = np.mean(centroids_shift)
-        #     iter = iter + 1
-        # _, labels = self.__calculate_projections_labels(X, self.__centroids_)
-        # self.__inertia_ = self.__calculate_inertia(X, labels, self.__centroids_)
         return self
 
     def fit_predict(self, X: np.ndarray, y=None) -> np.ndarray:
@@ -158,8 +143,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         """
         self.fit(X)
         if self.copy == False:
-            # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
-            # labels: np.ndarray = np.argmax(S_proj, axis=1)
             _, labels = self.__calculate_projections_labels(
                 X, self.__centroids_)
             return labels
@@ -195,8 +178,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             labels (np.ndarray): (n_samples) Index of the cluster each sample belongs to.
         """
         X = self.__preprocess_input(X, is_train=False, copy=copy)
-        # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
-        # labels: np.ndarray = np.argmax(S_proj, axis=1)
         _, labels = self.__calculate_projections_labels(X, self.__centroids_)
         return labels
 

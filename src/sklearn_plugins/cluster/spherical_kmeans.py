@@ -130,7 +130,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.__n_samples_, self.__n_components_ = X.shape
         # start k-means
         if self.n_init == 1:
-            self.__centroids_, self.__inertia_ = self.__single_k_means_fit(
+            self.__centroids_, self.__inertia_ = self.__fit_kmeans(
                 X, self.random_state)
         else:
             random_state: RandomState = check_random_state(self.random_state)
@@ -139,40 +139,34 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
                                                                 np.uint32).max,
                                                             size=self.n_init)
             n_processes: int = self.__get_n_usable_processes()
-            random_seeds_list: np.ndarray = np.array_split(
-                random_seeds, n_processes)
-            ret_queue: mp.Queue = mp.Queue()
-            args_list: List[Tuple[np.ndarray, int, mp.Queue]] = [
-                (X, seeds, ret_queue) for seeds in random_seeds_list
-            ]
-            processes: List[mp.Process] = list()
-            for args in args_list:
-                p = mp.Process(target=self.__single_thread_k_means_fit,
-                               args=args)
-                p.start()
-                processes.append(p)
-            centroids_list: List[np.ndarray] = list()
-            inertia_list: List[float] = list()
-            for p in processes:
-                print(p.name)
-                p.join()
-                centroids, inertia = ret_queue.get()
-                centroids_list.extend(centroids)
-                inertia_list.extend(inertia)
-            min_index: int = np.argmin(inertia_list)
-            self.__inertia_ = inertia_list[min_index]
-            self.__centroids_ = centroids_list[min_index]
-            # with Pool(processes=self.n_processes) as p:
-            #     random_state: RandomState = check_random_state(
-            #         self.random_state)
-            #     random_seeds: List[int] = random_state.randint(
-            #         low=0, high=np.iinfo(np.uint32).max,
-            #         size=self.n_init).tolist()
-            #     results: List[tuple[np.ndarray, float]] = p.map(
-            #         self._single_k_means_fit,
-            #         iterable=[[self, X, r] for r in random_seeds])
-            #     self.__centroids_, self.__inertia_ = self.__get_best_result(
-            #         results)
+            if n_processes == 1:
+                self.__centroids_, self.__inertia_ = self.__fit_kmeans(
+                    X, self.random_state)
+            else:
+                random_states_list: np.ndarray = np.array_split(
+                    random_seeds, n_processes)
+                ret_queue: mp.Queue = mp.Queue()
+                args_list: List[Tuple[np.ndarray, int, mp.Queue]] = [
+                    (X, seeds, ret_queue) for seeds in random_states_list
+                ]
+                # processes: List[mp.Process] = list()
+                # for args in args_list:
+                #     p = mp.Process(target=self.__fit_kmeans_single_process,
+                #                    args=args)
+                #     p.start()
+                #     processes.append(p)
+                # centroids_list: List[np.ndarray] = list()
+                # inertia_list: List[float] = list()
+                # for p in processes:
+                #     p.join()
+                #     centroids, inertia = ret_queue.get()
+                #     centroids_list.extend(centroids)
+                #     inertia_list.extend(inertia)
+                centroids_list, inertia_list = self.__fit_kmeans_processes(
+                    args_list, ret_queue)
+                min_index: int = np.argmin(inertia_list)
+                self.__inertia_ = inertia_list[min_index]
+                self.__centroids_ = centroids_list[min_index]
         return self
 
     def fit_predict(self, X: np.ndarray, y=None) -> np.ndarray:
@@ -413,8 +407,18 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         inertia: float = np.sum(np.square(X_distance))
         return inertia
 
-    def __single_k_means_fit(self, X: np.ndarray,
-                             random_state: Union[int, RandomState, None]):
+    def __fit_kmeans(self, X: np.ndarray, random_state: Union[int, RandomState,
+                                                              None]):
+        """Fit Kmeans once given the random_state.
+
+        Args:
+            X (np.ndarray): New data to transform.
+            random_state (Union[int, RandomState, None]): Random state used to initialize centroids.
+
+        Returns:
+            centroids (np.ndarray): Fitted cluster centroids.
+            inertia (float): Sum of squared distances of samples to their closest cluster center.
+        """
         centroids = self.__init_centroids(check_random_state(random_state))
         avg_centoids_shift: float = np.inf
         iter: int = 0
@@ -431,17 +435,55 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         inertia: float = self.__calculate_inertia(X, labels, centroids)
         return centroids, inertia
 
-    def __single_thread_k_means_fit(self, X: np.ndarray,
+    def __fit_kmeans_single_process(self, X: np.ndarray,
                                     random_states: List[Union[int, RandomState,
                                                               None]],
                                     ret_queue: mp.Queue):
+        """Use singel process to restart KMeans len(random_states) times.
+
+        Given a list of random_states, exaust all the random_state with self.__fit_kmeans and put the result back to ret_queue.
+
+        Args:
+            X (np.ndarray): New data to transform.
+            random_states (List[Union[int, RandomState, None]]): A List of random state used to initialize centroids for each fit_kmeans.
+            ret_queue (mp.Queue): mp.Queue used to store result.
+        """
         centroids_list: List[np.ndarray] = list()
         inertia_list: List[float] = list()
         for random_state in random_states:
-            centroids, inertia = self.__single_k_means_fit(X, random_state)
+            centroids, inertia = self.__fit_kmeans(X, random_state)
             centroids_list.append(centroids)
             inertia_list.append(inertia)
         ret_queue.put((centroids_list, inertia_list))
+
+    def __fit_kmeans_processes(
+            self, args_list: List[Tuple[np.ndarray, int, mp.Queue]],
+            ret_queue: mp.Queue) -> Tuple[List[np.ndarray], List[float]]:
+        """Use multiple process to fit KMeans len(args_list) times.
+
+        Given a list of arguments to self.__fit_kmeans_single_process, exaust all the args with self.__fit_kmeans_single_process and return (List[centroids], List[inertia]).
+
+        Args:
+            args_list (List[Tuple[np.ndarray, int, mp.Queue]]): A list of arguments used to execute self.__fit_kmeans_single_process
+            ret_queue (mp.Queue): mp.Queue used to store result.
+
+        Returns:
+            centroids (List[np.ndarray]): List of fitted cluster centroids.
+            inertia (List[float]): List of inertia.
+        """
+        processes: List[mp.Process] = list()
+        for args in args_list:
+            p = mp.Process(target=self.__fit_kmeans_single_process, args=args)
+            p.start()
+            processes.append(p)
+        centroids_list: List[np.ndarray] = list()
+        inertia_list: List[float] = list()
+        for p in processes:
+            p.join()
+            centroids, inertia = ret_queue.get()
+            centroids_list.extend(centroids)
+            inertia_list.extend(inertia)
+        return centroids_list, inertia_list
 
     def __get_n_usable_processes(self) -> int:
         max_n_processes: int = len(os.sched_getaffinity(0))

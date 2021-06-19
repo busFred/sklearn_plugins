@@ -3,7 +3,7 @@
 import copy
 import multiprocessing as mp
 import os
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 from numpy import random
@@ -33,14 +33,14 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     ```
 
     Attributes:
-        n_clusters (int, optional): The number of clusters to form as well as the number of centroids to generate.. Defaults to 500.
-        n_components (Union[int, float, str, None], optional): Number of components to keep after PCA. If n_components is not set all components are kept. Defaults to 0.8.
-        normalize (bool, optional): Normalize features within individual sample to zero mean and unit variance prior to training. Defaults to True.
-        standarize (bool, optional): Standarize individual features across dataset to zero mean and unit variance after normalization prior to whitening. Defaults to True.
-        whiten (bool, optional): When True, the components_ vectors are multiplied by the square root of n_samples and then divided by the singular values to ensure uncorrelated outputs with unit component-wise variances. Defaults to True.
-        max_iter (int, optional): Maximum number of iterations of the k-means algorithm for a single run.. Defaults to 100.
-        tol (float, optional): Relative tolerance with regards to Frobenius norm of the difference in the cluster centers of two consecutive iterations to declare convergence. Defaults to 0.01.
-        copy (bool, optional): When True, the data are modified in-place. Defaults to True.
+        n_clusters (int): The number of clusters to form as well as the number of centroids to generate.. Defaults to 500.
+        n_components (Union[int, float, str, None]): Number of components to keep after PCA. If n_components is not set all components are kept. Defaults to 0.8.
+        normalize (bool): Normalize features within individual sample to zero mean and unit variance prior to training. Defaults to True.
+        standarize (bool): Standarize individual features across dataset to zero mean and unit variance after normalization prior to whitening. Defaults to True.
+        whiten (bool): When True, the components_ vectors are multiplied by the square root of n_samples and then divided by the singular values to ensure uncorrelated outputs with unit component-wise variances. Defaults to True.
+        max_iter (int): Maximum number of iterations of the k-means algorithm for a single run.. Defaults to 100.
+        tol (float): Relative tolerance with regards to Frobenius norm of the difference in the cluster centers of two consecutive iterations to declare convergence. Defaults to 0.01.
+        copy (bool): When True, the data are modified in-place. Defaults to True.
     """
     # public:
     n_clusters: int
@@ -55,15 +55,13 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     random_state: Union[int, RandomState, None]
     copy: bool
 
-    # protected
-    _pca_: PCA
-    _std_scalar_: StandardScaler
-
     # private
     __centroids_: np.ndarray
     __n_components_: int
     __n_samples_: int
     __inertia_: float
+    __pca_: PCA
+    __std_scalar_: StandardScaler
 
     def __init__(self,
                  n_clusters: int = 500,
@@ -103,11 +101,11 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.random_state = random_state
         self.copy = copy
         # create instances
-        self._pca_ = PCA(n_components=n_components, copy=copy, whiten=whiten)
+        self.__pca_ = PCA(n_components=n_components, copy=copy, whiten=whiten)
         if standarize:
-            self._std_scalar_ = StandardScaler(copy=copy)
+            self.__std_scalar_ = StandardScaler(copy=copy)
         else:
-            self._std_scalar_ = None
+            self.__std_scalar_ = None
         # private attributes
         self.__centroids_ = None
         self.__n_components_ = -1
@@ -248,10 +246,50 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         """
         return self.__preprocess_input(X, is_train=False, copy=copy)
 
+    def get_params(self, deep: bool = False):
+        """
+        Get parameters for this estimator.
+
+        Args:
+            deep (bool): If True, will return the parameters for this estimator and contained subobjects that are estimators. Default=True.
+
+        Returns:
+            params (dict): Parameter names mapped to their values.
+        """
+
+        params: Dict = super().get_params()
+        return params
+
+    def set_params(self, **params):
+        """
+        Set the parameters of this estimator.
+
+        The method works on simple estimators as well as on nested objects (such as :class:`~sklearn.pipeline.Pipeline`). The latter have parameters of the form ``<component>__<parameter>`` so that it's possible to update each component of a nested object.
+
+        Parameters:
+            **params (dict): Estimator parameters.
+
+        Returns:
+            self (SphericalKMeans): cloned estimator.
+        """
+        super().set_params(**params)
+        self.__pca_ = PCA(n_components=self.n_components,
+                          copy=self.copy,
+                          whiten=self.whiten)
+        if self.standarize:
+            self.__std_scalar_ = StandardScaler(copy=self.copy)
+        else:
+            self.__std_scalar_ = None
+        self.__centroids_ = None
+        self.__n_components_ = -1
+        self.__n_samples_ = -1
+        self.__inertia_ = 0.0
+        return self
+
     @property
     def pca_(self) -> PCA:
         """Deep copy of the PCA instance used for whitening."""
-        return copy.deepcopy(self._pca_)
+        return copy.deepcopy(self.__pca_)
 
     @property
     def std_scalar_(self) -> Union[StandardScaler, None]:
@@ -306,14 +344,14 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         # each features in the dataset has zero mean and unit variance; dataset level
         if self.standarize:
             if is_train == False:
-                X = self._std_scalar_.transform(X, copy=copy)
+                X = self.__std_scalar_.transform(X, copy=copy)
             else:
-                X = self._std_scalar_.fit_transform(X)
+                X = self.__std_scalar_.fit_transform(X)
         # PCA whiten
         if is_train == False:
-            X = self._pca_.transform(X)
+            X = self.__pca_.transform(X)
         else:
-            X = self._pca_.fit_transform(X)
+            X = self.__pca_.fit_transform(X)
         return X
 
     def __update_centroids(self, X: np.ndarray,

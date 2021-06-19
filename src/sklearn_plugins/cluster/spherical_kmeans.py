@@ -149,19 +149,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
                 args_list: List[Tuple[np.ndarray, int, mp.Queue]] = [
                     (X, seeds, ret_queue) for seeds in random_states_list
                 ]
-                # processes: List[mp.Process] = list()
-                # for args in args_list:
-                #     p = mp.Process(target=self.__fit_kmeans_single_process,
-                #                    args=args)
-                #     p.start()
-                #     processes.append(p)
-                # centroids_list: List[np.ndarray] = list()
-                # inertia_list: List[float] = list()
-                # for p in processes:
-                #     p.join()
-                #     centroids, inertia = ret_queue.get()
-                #     centroids_list.extend(centroids)
-                #     inertia_list.extend(inertia)
                 centroids_list, inertia_list = self.__fit_kmeans_processes(
                     args_list, ret_queue)
                 min_index: int = np.argmin(inertia_list)
@@ -233,7 +220,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         """
         X = self.__preprocess_input(X, is_train=False, copy=copy)
         S_proj = self.__calculate_projections(X, self.__centroids_)
-        # S_proj: np.ndarray = np.matmul(X, self.__centroids_)
         return S_proj
 
     def score(self, X: np.ndarray, copy: bool = True):
@@ -486,6 +472,11 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         return centroids_list, inertia_list
 
     def __get_n_usable_processes(self) -> int:
+        """Get usable processes.
+
+        Returns:
+            int: Usable processes.
+        """
         max_n_processes: int = len(os.sched_getaffinity(0))
         if self.n_processes == None:
             return max_n_processes

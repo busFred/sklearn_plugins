@@ -8,7 +8,8 @@ setuptools.setup(
     version="0.0.1",
     author="Hung-Tien Huang",
     author_email="hungtienhuang@gmail.com",
-    description="A package containing algorithms not included in scikit-learn package",
+    description=
+    "A package containing algorithms not included in scikit-learn package",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/busFred/sklearn_plugins",
@@ -23,4 +24,4 @@ setuptools.setup(
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
-)
+    install_requires=['numpy', 'scipy', 'scikit-learn'])

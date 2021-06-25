@@ -540,7 +540,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             int: Usable processes.
         """
         max_n_processes: int = len(os.sched_getaffinity(0))
-        if self.n_processes == None:
+        if self.n_processes is None:
             return max_n_processes
         elif self.n_processes < max_n_processes:
             return self.n_processes

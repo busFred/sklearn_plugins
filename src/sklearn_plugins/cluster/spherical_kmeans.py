@@ -41,6 +41,13 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         max_iter (int): Maximum number of iterations of the k-means algorithm for a single run.. Defaults to 100.
         tol (float): Relative tolerance with regards to Frobenius norm of the difference in the cluster centers of two consecutive iterations to declare convergence. Defaults to 0.01.
         copy (bool): When True, the data are modified in-place. Defaults to True.
+        n_components_ (int): Inferred n_components used by PCA to represent input data.
+        centroids_ (Union[np.ndarray, None]): (n_components_, n_clusters) The inferred centroids of each cluster. If the module is not fitted, returns None.
+        cluster_centers_(Union[np.ndarray, None]): (n_clusters, n_components_) The transpose of self.centroids_. If the module is not fitted, returns None.
+        std_scalar_ (Union[StandardScaler, None]): The StandardScalar instance used to perform input data standardization.
+        pca_ (PCA): The PCA instance used to perform dimensionality reduction.
+        inertia_ (float): Sum of squared distances of samples to their closest cluster center.
+        labels_ (Union[np.ndarray, None]): Labels of the dataset used to fit the module.
     """
     # public:
     n_clusters: int
@@ -55,13 +62,52 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     random_state: Union[int, RandomState, None]
     copy: bool
 
-    # private
-    __centroids_: np.ndarray
+    # private:
+    __centroids_: Union[np.ndarray, None]
     __n_components_: int
     __n_samples_: int
     __inertia_: float
     __pca_: PCA
-    __std_scalar_: StandardScaler
+    __std_scalar_: Union[StandardScaler, None]
+    __labels_: Union[np.ndarray, None]
+
+    # property
+    @property
+    def pca_(self) -> PCA:
+        """Deep copy of the PCA instance used for whitening."""
+        return copy.deepcopy(self.__pca_)
+
+    @property
+    def std_scalar_(self) -> Union[StandardScaler, None]:
+        """Deep copy of the StandardScalar instance used for standarization."""
+        return copy.deepcopy(self.std_scalar_)
+
+    @property
+    def centroids_(self) -> Union[np.ndarray, None]:
+        """Deep copy of the centroids of clusters. (n_components, n_clusters)"""
+        return copy.deepcopy(self.__centroids_)
+
+    @property
+    def n_components_(self) -> int:
+        """The estimated number of components."""
+        return self.__n_components_
+
+    @property
+    def inertia_(self) -> float:
+        """Sum of squared distances of samples to their closest cluster center."""
+        return self.__inertia_
+
+    @property
+    def labels_(self) -> Union[np.ndarray, None]:
+        """Deep copy of the labels of the samples."""
+        return copy.deepcopy(self.__labels_)
+
+    @property
+    def cluster_centers_(self) -> Union[np.ndarray, None]:
+        """Deep copy of the centroids of clusters. centroids.T"""
+        if self.centroids_ is not None:
+            return self.centroids_.T
+        return self.centroids_
 
     def __init__(self,
                  n_clusters: int = 500,
@@ -111,6 +157,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.__n_components_ = -1
         self.__n_samples_ = -1
         self.__inertia_ = 0.0
+        self.__labels_ = None
 
     def fit(self, X: np.ndarray, y=None) -> "SphericalKMeans":
         """Compute k-means clustering.
@@ -152,6 +199,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
                 min_index: int = np.argmin(inertia_list)
                 self.__inertia_ = inertia_list[min_index]
                 self.__centroids_ = centroids_list[min_index]
+        _, self.__labels_ = self.__calculate_projections_labels(
+            X, self.__centroids_)
         return self
 
     def fit_predict(self, X: np.ndarray, y=None) -> np.ndarray:
@@ -285,31 +334,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.__n_samples_ = -1
         self.__inertia_ = 0.0
         return self
-
-    @property
-    def pca_(self) -> PCA:
-        """Deep copy of the PCA instance used for whitening."""
-        return copy.deepcopy(self.__pca_)
-
-    @property
-    def std_scalar_(self) -> Union[StandardScaler, None]:
-        """Deep copy of the StandardScalar instance used for standarization."""
-        return copy.deepcopy(self.std_scalar_)
-
-    @property
-    def centroids_(self) -> np.ndarray:
-        """Deep copy of the centroids of clusters."""
-        return copy.deepcopy(self.__centroids_)
-
-    @property
-    def n_components_(self) -> int:
-        """The estimated number of components."""
-        return self.__n_components_
-
-    @property
-    def inertia_(self) -> float:
-        """Sum of squared distances of samples to their closest cluster center."""
-        return self.__inertia_
 
     # private
     def __init_centroids(self, random_state: RandomState) -> np.ndarray:

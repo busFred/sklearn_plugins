@@ -8,10 +8,14 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 from numpy import random
 from numpy.random import RandomState
+from skl2onnx import update_registered_converter
 from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.utils import check_random_state
+
+from ._onnx_transform import (_spherical_kmeans_converter,
+                              _spherical_kmeans_shape_calculator)
 
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
@@ -209,11 +213,11 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         Convenience method; equivalent to calling `fit(X)` followed by `predict(X)`.
 
         Args:
-            X (np.ndarray): New data to transform.
+            X (np.ndarray): (n_samples, n_features) New data to transform.
             y (Ignored): Not used, present here for API consistency by convention.
 
         Returns:
-            labels (np.ndarray): Index of the cluster each sample belongs to.
+            labels (np.ndarray): (n_samples,) Index of the cluster each sample belongs to.
         """
         self.fit(X)
         if self.copy == False:
@@ -227,12 +231,14 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
 
         Convenience method; equivalent to calling `fit(X)` followed by `transform(X)`.
 
+        See documentation for `transform(X)`.
+
         Args:
-            X (np.ndarray): New data to transform.
+            X (np.ndarray): (n_samples, n_features) New data to transform.
             y (Ignored): Not used, present here for API consistency by convention.
 
         Returns:
-            S_proj (np.ndarray): X transformed in the new space.
+            S_proj (np.ndarray): (n_samples, n_clusters) X transformed in the new space.
         """
         self.fit(X)
         if self.copy == False:
@@ -256,14 +262,16 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         return labels
 
     def transform(self, X: np.ndarray, copy: bool = True) -> np.ndarray:
-        """Transform X to a cluster-distance space.
+        """Transform X to a cluster-projection space.
+
+        Each datapoint in X is projected onto each cluster centroids. The output is a row vector of projection onto each cluster centroids.
 
         Args:
             X (np.ndarray): (n_samples, n_features) New data to transform.
             copy (bool, optional): Whether or not to modify in-place during inference call. Defaults to True.
 
         Returns:
-            S_proj (np.ndarray): (n_samples, n_features) X transformed in the new space.
+            S_proj (np.ndarray): (n_samples, n_clusters) X transformed in the new space.
         """
         X = self.__preprocess_input(X, is_train=False, copy=copy)
         S_proj = self.__calculate_projections(X, self.__centroids_)
@@ -545,3 +553,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         elif self.n_processes < max_n_processes:
             return self.n_processes
         return max_n_processes
+
+
+update_registered_converter(SphericalKMeans, "SklearnSphericalKMeans",
+                            _spherical_kmeans_shape_calculator,
+                            _spherical_kmeans_converter)

@@ -19,7 +19,6 @@ def spherical_kmeans_shape_calculator(operator: Operator):
     Args:
         operator (Operator): An Operator container.
     """
-    print("exec1")
     check_input_and_output_types(
         operator,
         good_input_types=[Int64TensorType, FloatTensorType, DoubleTensorType],
@@ -49,7 +48,7 @@ def spherical_kmeans_shape_calculator(operator: Operator):
 
 
 def spherical_kmeans_converter(scope: Scope, operator: Operator,
-                                container: ModelComponentContainer):
+                               container: ModelComponentContainer):
     """The ONNX converter for sklearn_plugins.cluster.SphericalKMeans.
 
     Original SphericalKMeans Implementation:
@@ -80,32 +79,37 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
     # retreive input
     X: Variable = operator.inputs[0]
     input_op: OnnxOperator = OnnxIdentity(X, op_version=op_version)
+    input_op.add_to(scope=scope, container=container)
     # module computation
     # normalize input
-    normalize_op = input_op
+    normalize_op: OnnxOperator = input_op
     if skm.normalize == True:
-        normalize_op: OnnxOperator = OnnxNormalizer(input_op,
-                                                    norm="L2",
-                                                    op_version=op_version)
+        normalize_op = OnnxNormalizer(input_op,
+                                      norm="L2",
+                                      op_version=op_version)
+        normalize_op.add_to(scope=scope, container=container)
     # standardize input
-    std_scalar_op = normalize_op
+    std_scalar_op: OnnxOperator = normalize_op
     if skm.standardize == True:
-        standardize_sub_op: OnnxSubOperator = OnnxSubOperator(
-            op=skm.std_scalar_, inputs=std_scalar_op, op_version=op_version)
-        std_scalar_op = OnnxIdentity(standardize_sub_op, op_version=op_version)
+        std_scalar_sub_op: OnnxSubOperator = OnnxSubOperator(
+            op=skm.std_scalar_,
+            inputs=normalize_op.outputs,
+            op_version=op_version)
+        std_scalar_op = OnnxIdentity(std_scalar_sub_op, op_version=op_version)
+        std_scalar_op.add_to(scope=scope, container=container)
     # pca whitening
     pca_sub_op: OnnxSubOperator = OnnxSubOperator(op=skm.pca_,
-                                                  inputs=std_scalar_op,
+                                                  inputs=std_scalar_op.outputs,
                                                   op_version=op_version)
     pca_op: OnnxOperator = OnnxIdentity(pca_sub_op, op_version=op_version)
     # calculate projection
     proj_op: OnnxOperator = OnnxMatMul(pca_op,
                                        skm.centroids_,
                                        op_version=op_version,
-                                       output_names=op_outputs[1])
+                                       output_names=[op_outputs[1]])
     labels_op: OnnxOperator = OnnxArgMax(proj_op,
                                          op_version=op_version,
-                                         output_names=op_outputs[0])
+                                         output_names=[op_outputs[0]])
     proj_op.add_to(scope=scope, container=container)
     labels_op.add_to(scope=scope, container=container)
 

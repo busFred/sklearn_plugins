@@ -55,7 +55,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     n_components: Union[int, float, str, None]
     whiten: bool
     normalize: bool
-    standarize: bool
+    standardize: bool
     n_init: int
     n_processes: Union[int, None]
     max_iter: int
@@ -114,7 +114,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
                  n_clusters: int = 500,
                  n_components: Union[int, float, str, None] = 0.8,
                  normalize: bool = True,
-                 standarize: bool = True,
+                 standardize: bool = True,
                  whiten: bool = True,
                  n_init: int = 10,
                  n_processes: int = None,
@@ -128,7 +128,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             n_clusters (int, optional): The number of clusters to form as well as the number of centroids to generate.. Defaults to 500.
             n_components (Union[int, float, str, None], optional): Number of components to keep after PCA. If n_components is not set all components are kept. Defaults to 0.8.
             normalize (bool, optional): Normalize features within individual sample to zero mean and unit variance prior to training. Defaults to True.
-            standarize (bool, optional): Standarize individual features across dataset to zero mean and unit variance after normalization prior to whitening. Defaults to True.
+            standardize (bool, optional): Standarize individual features across dataset to zero mean and unit variance after normalization prior to whitening. Defaults to True.
             whiten (bool, optional): When True, the components_ vectors are multiplied by the square root of n_samples and then divided by the singular values to ensure uncorrelated outputs with unit component-wise variances. Defaults to True.
             n_init (int, optional): Number of time the algorithm will be run with different centroid initialization. The final results will be the berst output of n_init consecutive runs in terms of inertia.
             max_iter (int, optional): Maximum number of iterations of the k-means algorithm for a single run.. Defaults to 100.
@@ -139,7 +139,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.n_clusters = n_clusters
         self.n_components = n_components
         self.normalize = normalize
-        self.standarize = standarize
+        self.standardize = standardize
         self.whiten = whiten
         self.n_init = n_init
         self.n_processes = n_processes
@@ -149,7 +149,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.copy = copy
         # create instances
         self.__pca_ = PCA(n_components=n_components, copy=copy, whiten=whiten)
-        if standarize:
+        if standardize:
             self.__std_scalar_ = StandardScaler(copy=copy)
         else:
             self.__std_scalar_ = None
@@ -330,7 +330,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.__pca_ = PCA(n_components=self.n_components,
                           copy=self.copy,
                           whiten=self.whiten)
-        if self.standarize:
+        if self.standardize:
             self.__std_scalar_ = StandardScaler(copy=self.copy)
         else:
             self.__std_scalar_ = None
@@ -373,7 +373,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             # TODO investigate the possibility of standardize normalization as suggested in original paper
             # X = scale(X, axis=1, copy=self.copy)
         # each features in the dataset has zero mean and unit variance; dataset level
-        if self.standarize:
+        if self.standardize:
             if is_train == False:
                 X = self.__std_scalar_.transform(X, copy=copy)
             else:

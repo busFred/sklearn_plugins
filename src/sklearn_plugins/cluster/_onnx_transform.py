@@ -13,12 +13,13 @@ from skl2onnx.common.utils import check_input_and_output_types
 from sklearn_plugins.cluster.spherical_kmeans import SphericalKMeans
 
 
-def _spherical_kmeans_shape_calculator(operator: Operator):
+def spherical_kmeans_shape_calculator(operator: Operator):
     """Calculate the input and output shape for SphericalKMeans.
 
     Args:
         operator (Operator): An Operator container.
     """
+    print("exec1")
     check_input_and_output_types(
         operator,
         good_input_types=[Int64TensorType, FloatTensorType, DoubleTensorType],
@@ -47,7 +48,7 @@ def _spherical_kmeans_shape_calculator(operator: Operator):
     # op_outputs[2].type = InputVarDtype(shape=[n_samples])
 
 
-def _spherical_kmeans_converter(scope: Scope, operator: Operator,
+def spherical_kmeans_converter(scope: Scope, operator: Operator,
                                 container: ModelComponentContainer):
     """The ONNX converter for sklearn_plugins.cluster.SphericalKMeans.
 
@@ -78,7 +79,6 @@ def _spherical_kmeans_converter(scope: Scope, operator: Operator,
     op_outputs: List[Variable] = operator.outputs
     # retreive input
     X: Variable = operator.inputs[0]
-    dtype = guess_numpy_type(X.type)
     input_op: OnnxOperator = OnnxIdentity(X, op_version=op_version)
     # module computation
     # normalize input

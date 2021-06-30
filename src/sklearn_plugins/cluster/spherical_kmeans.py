@@ -81,7 +81,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     @property
     def std_scalar_(self) -> Union[StandardScaler, None]:
         """Deep copy of the StandardScalar instance used for standarization."""
-        return copy.deepcopy(self.std_scalar_)
+        return copy.deepcopy(self.__std_scalar_)
 
     @property
     def centroids_(self) -> Union[np.ndarray, None]:
@@ -554,9 +554,9 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         return max_n_processes
 
 
-from ._onnx_transform import (_spherical_kmeans_converter,
-                              _spherical_kmeans_shape_calculator)
+from ._onnx_transform import (spherical_kmeans_converter,
+                              spherical_kmeans_shape_calculator)
 
 update_registered_converter(SphericalKMeans, "SklearnPluginsSphericalKMeans",
-                            _spherical_kmeans_shape_calculator,
-                            _spherical_kmeans_converter)
+                            spherical_kmeans_shape_calculator,
+                            spherical_kmeans_converter)

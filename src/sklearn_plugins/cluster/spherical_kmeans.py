@@ -11,11 +11,8 @@ from numpy.random import RandomState
 from skl2onnx import update_registered_converter
 from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler, normalize
+from sklearn.preprocessing import StandardScaler, normalize, scale
 from sklearn.utils import check_random_state
-
-from ._onnx_transform import (_spherical_kmeans_converter,
-                              _spherical_kmeans_shape_calculator)
 
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
@@ -29,10 +26,10 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     Input flow:
     ```pseudo
         if normalize:
-            __normalizer.fit_transform(x)
+            X = normalize(X)
         if standarize:
-            __std_scalar.fit_transform(x)
-        __pca.fit_transform(x)
+            X = __std_scalar.fit_transform(x)
+        X = __pca.fit_transform(x)
         perform_kmeans(x)
     ```
 
@@ -370,9 +367,11 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         Returns:
             X (np.ndarray): (n_samples, n_components) preprocessed input
         """
-        # features of each sample has zero mean and unit variance; data-point level
+        # features of each sample are normalized to unit length vector; data-point level
         if self.normalize:
             X = normalize(X, norm="l2", axis=1, copy=self.copy)
+            # TODO investigate the possibility of standardize normalization as suggested in original paper
+            # X = scale(X, axis=1, copy=self.copy)
         # each features in the dataset has zero mean and unit variance; dataset level
         if self.standarize:
             if is_train == False:
@@ -555,6 +554,9 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         return max_n_processes
 
 
-update_registered_converter(SphericalKMeans, "SklearnSphericalKMeans",
+from ._onnx_transform import (_spherical_kmeans_converter,
+                              _spherical_kmeans_shape_calculator)
+
+update_registered_converter(SphericalKMeans, "SklearnPluginsSphericalKMeans",
                             _spherical_kmeans_shape_calculator,
                             _spherical_kmeans_converter)

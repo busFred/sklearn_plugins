@@ -1,14 +1,16 @@
-from typing import List
+from typing import List, Union
 
 from onnxconverter_common.data_types import (DataType, DoubleTensorType,
                                              FloatTensorType, Int64TensorType)
 from skl2onnx import get_model_alias
-from skl2onnx.algebra.onnx_operator import OnnxSubOperator
-from skl2onnx.algebra.onnx_ops import OnnxIdentity
+from skl2onnx.algebra.onnx_operator import OnnxOperator, OnnxSubOperator
+from skl2onnx.algebra.onnx_ops import (OnnxArgMax, OnnxIdentity, OnnxMatMul,
+                                       OnnxNormalizer)
 from skl2onnx.common._container import ModelComponentContainer
 from skl2onnx.common._topology import Operator, Scope, Variable
+from skl2onnx.common.data_types import guess_numpy_type
 from skl2onnx.common.utils import check_input_and_output_types
-from sklearn_plugins.cluster import SphericalKMeans
+from sklearn_plugins.cluster.spherical_kmeans import SphericalKMeans
 
 
 def _spherical_kmeans_shape_calculator(operator: Operator):
@@ -40,25 +42,70 @@ def _spherical_kmeans_shape_calculator(operator: Operator):
     op_outputs[0].type = InputVarDtype(shape=[n_samples])
     # output[1] = skm_op.fit_transform(X)
     op_outputs[1].type = InputVarDtype(shape=[n_samples, n_clusters])
-    # output[2] = skm_op.score(X)
-    op_outputs[2].type = InputVarDtype(shape=[n_samples])
+    # TODO move to optioanl output according to custom_parsers
+    # # output[2] = skm_op.score(X)
+    # op_outputs[2].type = InputVarDtype(shape=[n_samples])
 
 
 def _spherical_kmeans_converter(scope: Scope, operator: Operator,
                                 container: ModelComponentContainer):
-    skm_op: SphericalKMeans = operator.raw_operator
-    op_version = container.target_opset
-    out = operator.outputs
+    """The ONNX converter for sklearn_plugins.cluster.SphericalKMeans.
 
-    # We retrieve the unique input.
+    Original SphericalKMeans Implementation:
+    ```
+    # preprocess input
+    if skm.normalize:
+        X = normalize(X, norm="l2", axis=1, copy=skm.copy)
+    # each features in the dataset has zero mean and unit variance; dataset level
+    if skm.standarize:
+        X = skm.__std_scalar_.transform(X, copy=copy)
+    # PCA whiten
+    X = skm.__pca_.transform(X)
+    # calculate projection
+    proj: np.ndarray = np.matmul(X, centroids)
+    # calculate lables
+    labels: np.ndarray = np.argmax(S_proj, axis=1)
+    ```
+
+    Args:
+        scope (Scope): [description]
+        operator (Operator): [description]
+        container (ModelComponentContainer): [description]
+    """
+    skm: SphericalKMeans = operator.raw_operator
+    # The targeted ONNX operator set (referred to as opset) that matches the ONNX version.
+    op_version: Union[int, None] = container.target_opset
+    op_outputs: List[Variable] = operator.outputs
+    # retreive input
     X: Variable = operator.inputs[0]
-
-    # We tell in ONNX language how to compute the unique output.
-    # op_version=opv tells which opset is requested
-    subop = OnnxSubOperator(skm_op.pca_, X, op_version=op_version)
-    Y = OnnxIdentity(subop, op_version=op_version, output_names=out[:1])
-    Y.add_to(scope, container)
-    pass
+    dtype = guess_numpy_type(X.type)
+    input_op: OnnxOperator = OnnxIdentity(X, op_version=op_version)
+    # module computation
+    # normalize input
+    normalize_op = input_op
+    if skm.normalize == True:
+        normalize_op: OnnxOperator = OnnxNormalizer(input_op,
+                                                    norm="L2",
+                                                    op_version=op_version)
+    # standardize input
+    std_scalar_op = normalize_op
+    if skm.standardize == True:
+        standardize_sub_op: OnnxSubOperator = OnnxSubOperator(
+            op=skm.std_scalar_, inputs=std_scalar_op, op_version=op_version)
+        std_scalar_op = OnnxIdentity(standardize_sub_op, op_version=op_version)
+    # pca whitening
+    pca_sub_op: OnnxSubOperator = OnnxSubOperator(op=skm.pca_,
+                                                  inputs=std_scalar_op,
+                                                  op_version=op_version)
+    pca_op: OnnxOperator = OnnxIdentity(pca_sub_op, op_version=op_version)
+    # calculate projection
+    proj_op: OnnxOperator = OnnxMatMul(pca_op,
+                                       skm.centroids_,
+                                       op_version=op_version,
+                                       output_names=op_outputs[1])
+    labels_op: OnnxOperator = OnnxArgMax(proj_op,
+                                         op_version=op_version,
+                                         output_names=op_outputs[1])
 
 
 # TODO implement parser to export intermediate steps.

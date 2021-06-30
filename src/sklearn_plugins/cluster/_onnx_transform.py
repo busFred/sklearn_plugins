@@ -105,7 +105,9 @@ def _spherical_kmeans_converter(scope: Scope, operator: Operator,
                                        output_names=op_outputs[1])
     labels_op: OnnxOperator = OnnxArgMax(proj_op,
                                          op_version=op_version,
-                                         output_names=op_outputs[1])
+                                         output_names=op_outputs[0])
+    proj_op.add_to(scope=scope, container=container)
+    labels_op.add_to(scope=scope, container=container)
 
 
 # TODO implement parser to export intermediate steps.

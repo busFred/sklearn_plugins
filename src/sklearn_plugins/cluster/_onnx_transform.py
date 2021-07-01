@@ -104,6 +104,7 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
     labels_op: OnnxOperator = OnnxArgMax(proj_op,
                                          op_version=op_version,
                                          output_names=[op_outputs[0]],
+                                         axis=1,
                                          keepdims=0)
     labels_op.add_to(scope=scope, container=container)
 

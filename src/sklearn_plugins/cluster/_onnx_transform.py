@@ -1,10 +1,10 @@
-from typing import List, Union
+from typing import List, Type, Union
 
 from onnxconverter_common.data_types import (DataType, DoubleTensorType,
                                              FloatTensorType, Int64TensorType)
 from skl2onnx import get_model_alias
-from skl2onnx.algebra.onnx_operator import OnnxOperator, OnnxSubOperator
-from skl2onnx.algebra.onnx_ops import (OnnxArgMax, OnnxIdentity, OnnxMatMul,
+from skl2onnx.algebra.onnx_operator import OnnxOperator, OnnxSubEstimator
+from skl2onnx.algebra.onnx_ops import (OnnxArgMax, OnnxCast, OnnxMatMul,
                                        OnnxNormalizer)
 from skl2onnx.common._container import ModelComponentContainer
 from skl2onnx.common._topology import Operator, Scope, Variable
@@ -21,8 +21,8 @@ def spherical_kmeans_shape_calculator(operator: Operator):
     """
     check_input_and_output_types(
         operator,
-        good_input_types=[Int64TensorType, FloatTensorType, DoubleTensorType],
-        good_output_types=[Int64TensorType, FloatTensorType, DoubleTensorType])
+        good_input_types=[FloatTensorType, DoubleTensorType],
+        good_output_types=[FloatTensorType, DoubleTensorType])
     op_inputs: List[Variable] = operator.inputs
     if len(op_inputs) != 1:
         raise RuntimeError(
@@ -30,14 +30,14 @@ def spherical_kmeans_shape_calculator(operator: Operator):
     op_outputs: List[Variable] = operator.outputs
     if len(op_outputs) != 2:
         raise RuntimeError("Two outputs are expected for SphericalKMeans.")
-    skm_op: SphericalKMeans = operator.raw_operator
+    skm: SphericalKMeans = operator.raw_operator
     # retrieve skm inputs dtype
     input_var_type: DataType = op_inputs[0].type
     # retrieve skm inputs outputs shape
     n_samples: int = input_var_type.shape[0]
-    n_clusters: int = skm_op.n_clusters
+    n_clusters: int = skm.n_clusters
     # type alias
-    InputVarDtype = input_var_type.__class__
+    InputVarDtype: Type[DataType] = input_var_type.__class__
     # output[0] = skm_op.fit_predict(X)
     op_outputs[0].type = InputVarDtype(shape=[n_samples])
     # output[1] = skm_op.fit_transform(X)
@@ -73,35 +73,24 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
         container (ModelComponentContainer): [description]
     """
     skm: SphericalKMeans = operator.raw_operator
-    # The targeted ONNX operator set (referred to as opset) that matches the ONNX version.
     op_version: Union[int, None] = container.target_opset
     op_outputs: List[Variable] = operator.outputs
     # retreive input
-    X: Variable = operator.inputs[0]
-    input_op: OnnxOperator = OnnxIdentity(X, op_version=op_version)
-    input_op.add_to(scope=scope, container=container)
-    # module computation
+    input: Variable = operator.inputs[0]
     # normalize input
-    normalize_op: OnnxOperator = input_op
+    normalize_op: Union[OnnxOperator, Variable] = input
     if skm.normalize == True:
-        normalize_op = OnnxNormalizer(input_op,
-                                      norm="L2",
-                                      op_version=op_version)
-        normalize_op.add_to(scope=scope, container=container)
+        normalize_op = OnnxNormalizer(input, norm="L2", op_version=op_version)
     # standardize input
-    std_scalar_op: OnnxOperator = normalize_op
+    std_scalar_op: Union[OnnxOperator, Variable] = normalize_op
     if skm.standardize == True:
-        std_scalar_sub_op: OnnxSubOperator = OnnxSubOperator(
-            op=skm.std_scalar_,
-            inputs=normalize_op.outputs,
-            op_version=op_version)
-        std_scalar_op = OnnxIdentity(std_scalar_sub_op, op_version=op_version)
-        std_scalar_op.add_to(scope=scope, container=container)
+        std_scalar_op = OnnxSubEstimator(skm.std_scalar_,
+                                         normalize_op,
+                                         op_versionrow_norms=op_version)
     # pca whitening
-    pca_sub_op: OnnxSubOperator = OnnxSubOperator(op=skm.pca_,
-                                                  inputs=std_scalar_op.outputs,
-                                                  op_version=op_version)
-    pca_op: OnnxOperator = OnnxIdentity(pca_sub_op, op_version=op_version)
+    pca_op: OnnxOperator = OnnxSubEstimator(skm.pca_,
+                                            std_scalar_op,
+                                            op_version=op_version)
     # calculate projection
     proj_op: OnnxOperator = OnnxMatMul(pca_op,
                                        skm.centroids_,

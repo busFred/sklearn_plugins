@@ -16,6 +16,7 @@ from sklearn_plugins.cluster.spherical_kmeans import SphericalKMeans
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
 
+
 def spherical_kmeans_shape_calculator(operator: Operator):
     """Calculate the input and output shape for SphericalKMeans.
 

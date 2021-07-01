@@ -2,14 +2,13 @@ from typing import List, Type, Union
 
 from onnxconverter_common.data_types import (DataType, DoubleTensorType,
                                              FloatTensorType, Int64TensorType)
-from skl2onnx import get_model_alias
 from skl2onnx.algebra.onnx_operator import OnnxOperator, OnnxSubEstimator
-from skl2onnx.algebra.onnx_ops import (OnnxArgMax, OnnxCast, OnnxMatMul,
-                                       OnnxNormalizer)
+from skl2onnx.algebra.onnx_ops import (OnnxArgMax, OnnxMatMul)
 from skl2onnx.common._container import ModelComponentContainer
 from skl2onnx.common._topology import Operator, Scope, Variable
 from skl2onnx.common.data_types import guess_numpy_type
 from skl2onnx.common.utils import check_input_and_output_types
+from sklearn.preprocessing import Normalizer
 from sklearn_plugins.cluster.spherical_kmeans import SphericalKMeans
 
 
@@ -22,7 +21,7 @@ def spherical_kmeans_shape_calculator(operator: Operator):
     check_input_and_output_types(
         operator,
         good_input_types=[FloatTensorType, DoubleTensorType],
-        good_output_types=[FloatTensorType, DoubleTensorType])
+        good_output_types=[Int64TensorType, FloatTensorType, DoubleTensorType])
     op_inputs: List[Variable] = operator.inputs
     if len(op_inputs) != 1:
         raise RuntimeError(
@@ -77,10 +76,14 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
     op_outputs: List[Variable] = operator.outputs
     # retreive input
     input: Variable = operator.inputs[0]
+    np_dtype = guess_numpy_type(input.type)
     # normalize input
     normalize_op: Union[OnnxOperator, Variable] = input
     if skm.normalize == True:
-        normalize_op = OnnxNormalizer(input, norm="L2", op_version=op_version)
+        normalize_op = OnnxSubEstimator(Normalizer(),
+                                        normalize_op,
+                                        op_versionrow_norms=op_version)
+        # normalize_op = OnnxNormalizer(input, norm="L2", op_version=op_version)
     # standardize input
     std_scalar_op: Union[OnnxOperator, Variable] = normalize_op
     if skm.standardize == True:
@@ -93,13 +96,13 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
                                             op_version=op_version)
     # calculate projection
     proj_op: OnnxOperator = OnnxMatMul(pca_op,
-                                       skm.centroids_,
+                                       skm.centroids_.astype(np_dtype),
                                        op_version=op_version,
                                        output_names=[op_outputs[1]])
+    proj_op.add_to(scope=scope, container=container)
     labels_op: OnnxOperator = OnnxArgMax(proj_op,
                                          op_version=op_version,
                                          output_names=[op_outputs[0]])
-    proj_op.add_to(scope=scope, container=container)
     labels_op.add_to(scope=scope, container=container)
 
 

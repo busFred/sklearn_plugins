@@ -35,7 +35,7 @@ plt.close()
 #%%
 """Combine different categories into one dataset.
 """
-X = np.vstack((pointsA, pointsB, pointsC))
+X: np.ndarray = np.vstack((pointsA, pointsB, pointsC))
 print(X.shape)
 # %%
 """Plot combined dataset in Cartesian space.
@@ -47,7 +47,10 @@ plt.close()
 #%%
 """Perfom Spherical K-Means
 """
-skm = SphericalKMeans(n_clusters=3, n_components=0.80)
+skm = SphericalKMeans(n_clusters=3,
+                      n_components=0.80,
+                      normalize=True,
+                      standardize=True)
 assignment = skm.fit_predict(X)
 a_index = np.argwhere(assignment == 0).squeeze()
 b_index = np.argwhere(assignment == 1).squeeze()
@@ -58,12 +61,26 @@ c_index = np.argwhere(assignment == 2).squeeze()
 centroids = skm.centroids_
 print(centroids.shape)
 # %%
-"""Plot clustered dataset in feature space.
+"""Plot predicted clustered dataset in feature space.
 """
 input_processed = skm.preprocess_input(X)
+plt.title("points marked with predicted color")
 plt.plot(input_processed[a_index, 0], input_processed[a_index, 1], "bo")
 plt.plot(input_processed[b_index, 0], input_processed[b_index, 1], "ro")
 plt.plot(input_processed[c_index, 0], input_processed[c_index, 1], "go")
+plt.plot(centroids[0], centroids[1], "ko")
+plt.grid()
+plt.show()
+plt.close()
+
+# %%
+"""Plot clustered dataset in feature space.
+"""
+input_processed = skm.preprocess_input(X)
+plt.title("points marked with ground truth color")
+plt.plot(input_processed[0:199, 0], input_processed[0:199, 1], "bo")
+plt.plot(input_processed[200:399, 0], input_processed[200:399, 1], "ro")
+plt.plot(input_processed[400:599, 0], input_processed[400:599, 1], "go")
 plt.plot(centroids[0], centroids[1], "ko")
 plt.grid()
 plt.show()

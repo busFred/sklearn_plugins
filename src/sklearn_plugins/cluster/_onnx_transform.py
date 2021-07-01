@@ -3,7 +3,7 @@ from typing import List, Type, Union
 from onnxconverter_common.data_types import (DataType, DoubleTensorType,
                                              FloatTensorType, Int64TensorType)
 from skl2onnx.algebra.onnx_operator import OnnxOperator, OnnxSubEstimator
-from skl2onnx.algebra.onnx_ops import (OnnxArgMax, OnnxMatMul)
+from skl2onnx.algebra.onnx_ops import OnnxArgMax, OnnxMatMul, OnnxNormalizer
 from skl2onnx.common._container import ModelComponentContainer
 from skl2onnx.common._topology import Operator, Scope, Variable
 from skl2onnx.common.data_types import guess_numpy_type
@@ -80,7 +80,8 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
     # normalize input
     normalize_op: Union[OnnxOperator, Variable] = input
     if skm.normalize == True:
-        normalize_op = OnnxSubEstimator(Normalizer(),
+        # TODO temporary fix as input can only be np.float32 for SubEstimator approach; whereas OnnxNormalizer has inputs shape RuntimeError.
+        normalize_op = OnnxSubEstimator(Normalizer(norm="l2"),
                                         normalize_op,
                                         op_versionrow_norms=op_version)
         # normalize_op = OnnxNormalizer(input, norm="L2", op_version=op_version)

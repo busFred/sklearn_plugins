@@ -38,9 +38,9 @@ def spherical_kmeans_shape_calculator(operator: Operator):
     # type alias
     InputVarDtype: Type[DataType] = input_var_type.__class__
     # output[0] = skm_op.fit_predict(X)
-    op_outputs[0].type = InputVarDtype(shape=[n_samples])
+    op_outputs[0].type.shape = [n_samples]
     # output[1] = skm_op.fit_transform(X)
-    op_outputs[1].type = InputVarDtype(shape=[n_samples, n_clusters])
+    op_outputs[1].type.shape = [n_samples, n_clusters]
     # TODO move to optioanl output according to custom_parsers
     # # output[2] = skm_op.score(X)
     # op_outputs[2].type = InputVarDtype(shape=[n_samples])
@@ -103,7 +103,8 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
     proj_op.add_to(scope=scope, container=container)
     labels_op: OnnxOperator = OnnxArgMax(proj_op,
                                          op_version=op_version,
-                                         output_names=[op_outputs[0]])
+                                         output_names=[op_outputs[0]],
+                                         keepdims=0)
     labels_op.add_to(scope=scope, container=container)
 
 

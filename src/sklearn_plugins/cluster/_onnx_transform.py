@@ -85,11 +85,9 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
     # normalize input
     normalize_op: Union[OnnxOperator, Variable] = input
     if skm.normalize == True:
-        # TODO temporary fix as input can only be np.float32 for SubEstimator approach; whereas OnnxNormalizer has inputs shape RuntimeError.
         normalize_op = OnnxSubEstimator(Normalizer(norm="l2"),
                                         normalize_op,
                                         op_versionrow_norms=op_version)
-        # normalize_op = OnnxNormalizer(input, norm="L2", op_version=op_version)
     # standardize input
     std_scalar_op: Union[OnnxOperator, Variable] = normalize_op
     if skm.standardize == True:

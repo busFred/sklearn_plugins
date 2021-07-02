@@ -39,11 +39,11 @@ skm = SphericalKMeans(n_clusters=3,
 skm.fit(X)
 #%%
 """
-Bugs in skl2onnx limits input to be float32 only
+Both float and double works with skl2onnx 1.9.1.dev
 """
 onx: ModelProto
 try:
-    onx = to_onnx(skm, X.astype(np.float32), target_opset=13)
+    onx = to_onnx(skm, X.astype(np.float64), target_opset=13)
 except Exception as e:
     traceback.print_exception(type(e), e, e.__traceback__)
 #%%
@@ -53,7 +53,7 @@ print(str.format("projection.shape = {}", projection.shape))
 print(str.format("labels.shape = {}", labels.shape))
 #%%
 sess = rt.InferenceSession(onx.SerializeToString())
-results = sess.run(None, {'X': X.astype(np.float32)})
+results = sess.run(None, {'X': X.astype(np.float64)})
 #%%
 print("expected label")
 print(labels)

@@ -24,4 +24,4 @@ setuptools.setup(
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
-    install_requires=['numpy', 'scipy', 'scikit-learn'])
+    install_requires=['numpy', 'scipy', 'scikit-learn', 'skl2onnx'])

@@ -183,7 +183,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
             random_seeds: np.ndarray = random_state.randint(low=0,
                                                             high=np.iinfo(
                                                                 np.uint32).max,
-                                                            size=self.n_init)
+                                                            size=self.n_init,
+                                                            dtype=np.uint32)
             n_processes: int = self.__get_n_usable_processes()
             if n_processes == 1:
                 self.__centroids_, self.__inertia_ = self.__fit_kmeans(
@@ -546,7 +547,15 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         Returns:
             int: Usable processes.
         """
-        max_n_processes: int = len(os.sched_getaffinity(0))
+        max_n_processes: int
+        try:
+            max_n_processes = len(os.sched_getaffinity(0))
+        except AttributeError:
+            cpu_count: Union[int, None] = os.cpu_count()
+            if cpu_count is not None:
+                max_n_processes = cpu_count
+            else:
+                max_n_processes = 1
         if self.n_processes is None:
             return max_n_processes
         elif self.n_processes < max_n_processes:

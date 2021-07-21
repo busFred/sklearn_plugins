@@ -40,13 +40,15 @@ def spherical_kmeans_shape_calculator(operator: Operator):
     # retrieve skm inputs outputs shape
     n_samples: int = input_var_type.shape[0]
     n_clusters: int = skm.n_clusters
-    # type alias
-    InputVarDtype: Type[DataType] = input_var_type.__class__
     # output[0] = skm_op.fit_predict(X)
     op_outputs[0].type.shape = [n_samples]
+    op_outputs[0].onnx_name = "label"
     # output[1] = skm_op.fit_transform(X)
     op_outputs[1].type.shape = [n_samples, n_clusters]
+    op_outputs[1].onnx_name = "proj"
     # TODO move to optioanl output according to custom_parsers
+    # type alias
+    InputVarDtype: Type[DataType] = input_var_type.__class__
     # # output[2] = skm_op.score(X)
     # op_outputs[2].type = InputVarDtype(shape=[n_samples])
 

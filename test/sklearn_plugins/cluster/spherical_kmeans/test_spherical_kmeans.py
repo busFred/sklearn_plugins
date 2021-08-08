@@ -4,8 +4,9 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn_plugins.cluster import SphericalKMeans
-from yellowbrick.cluster import (InterclusterDistance, KElbowVisualizer,
-                                 SilhouetteVisualizer)
+from yellowbrick.cluster import InterclusterDistance
+from yellowbrick_plugins.cluster import (SphericalKElbowVisualizer,
+                                         SphericalSilhouetteVisualizer)
 
 #%%
 """Make synthetic data.
@@ -49,7 +50,7 @@ plt.close()
 """
 skm = SphericalKMeans(n_clusters=3,
                       n_components=0.80,
-                      normalize=True,
+                      normalize=False,
                       standardize=True)
 assignment = skm.fit_predict(X)
 a_index = np.argwhere(assignment == 0).squeeze()
@@ -95,7 +96,9 @@ skm.set_params(**d)
 """
 Use YellowBrick library to determine n_clusters to be used.
 """
-kev = KElbowVisualizer(SphericalKMeans(n_components=0.80), k=(2, 10))
+kev = SphericalKElbowVisualizer(SphericalKMeans(n_components=0.80),
+                       k=(2, 10),
+                       metric="distortion")
 kev.fit(X)
 kev.show()
 
@@ -103,7 +106,7 @@ kev.show()
 """
 Use YellowBrick library to plot the silhouette score of each cluster.
 """
-sv = SilhouetteVisualizer(
+sv = SphericalSilhouetteVisualizer(
     estimator=SphericalKMeans(n_clusters=3, n_components=0.80))
 sv.fit(X)
 sv.show()

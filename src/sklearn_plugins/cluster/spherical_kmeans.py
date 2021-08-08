@@ -1,9 +1,7 @@
 """Implementation of Spherical K-Means Clusting that is compatible with sklearn.
 """
 import copy
-import multiprocessing as mp
-import os
-from typing import Dict, List, Tuple, Union
+from typing import Dict, Tuple, Union
 
 import numpy as np
 from numpy import random
@@ -11,7 +9,7 @@ from numpy.random import RandomState
 from skl2onnx import update_registered_converter
 from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler, normalize, scale
+from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.utils import check_random_state
 
 from ._onnx_transform import (spherical_kmeans_converter,

@@ -12,9 +12,6 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.utils import check_random_state
 
-from ._onnx_transform import (spherical_kmeans_converter,
-                              spherical_kmeans_shape_calculator)
-
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
 
@@ -475,6 +472,9 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         inertia: float = self.__calculate_inertia(X, labels, centroids)
         return centroids, inertia
 
+
+from ._onnx_transform import (spherical_kmeans_converter,
+                              spherical_kmeans_shape_calculator)
 
 update_registered_converter(SphericalKMeans, "SklearnPluginsSphericalKMeans",
                             spherical_kmeans_shape_calculator,

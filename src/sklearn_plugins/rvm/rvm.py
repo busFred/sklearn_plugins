@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Callable, Dict, Optional, Union
 
 import numpy as np
@@ -19,7 +19,7 @@ class BaseRVM(BaseEstimator, ABC):
     max_iter: int
     random_state: Union[int, RandomState, None]
 
-    _gamma: float
+    gamma_: float
 
     def __init__(
             self,
@@ -43,7 +43,14 @@ class BaseRVM(BaseEstimator, ABC):
         self.verbose = verbose
         self.max_iter = max_iter
         self.random_state = random_state
-        self._gamma = 1.0
+        # inferred variables
+        self.gamma_ = 1.0
+
+    @abstractmethod
+    def predict(self, X: np.ndarray, y: np.ndarray) -> "BaseRVM":
+        # from setp 2 to step 11
+        # regression override predict method and initialize target precision sigma_squared (precision of y)
+        return self
 
     def get_params(self, deep: bool = False):
         """
@@ -80,15 +87,15 @@ class BaseRVM(BaseEstimator, ABC):
         if isinstance(self.gamma, str):
             if self.gamma == "scale":
                 x_var: float = X.var()
-                self._gamma = 1.0 / (n_features * x_var) if x_var != 0 else 1.0
+                self.gamma_ = 1.0 / (n_features * x_var) if x_var != 0 else 1.0
             elif self.gamma == "auto":
-                self._gamma = 1.0 / n_features
+                self.gamma_ = 1.0 / n_features
             else:
                 raise ValueError(
                     "When 'gamma' is a string, it should be either 'scale' or 'auto'. Got '{}' instead."
                     .format(self.gamma))
         elif isinstance(self.gamma, float):
-            self._gamma = self.gamma
+            self.gamma_ = self.gamma
         else:
             raise TypeError(
                 str.format(
@@ -100,7 +107,7 @@ class BaseRVM(BaseEstimator, ABC):
 
         Args:
             X (np.ndarray): (n_samples_X, n_features)
-            Y (np.ndarray): (n_samples_Y, n_features)
+            Y (np.ndarray): (n_samples_Y, n_features) or (N, M) in origianl literature where M is number of basis vectors.
 
         Raises:
             ValueError: "Custom kernel function did not return 2D matrix"
@@ -108,17 +115,17 @@ class BaseRVM(BaseEstimator, ABC):
             ValueError: "Kernel selection is invalid."
 
         Returns:
-            np.ndarray: (n_samples_X, n_samples_Y)
+            phi (np.ndarray): (n_samples_X, n_samples_Y) or (n_samples_X, M)
         """
         phi: np.ndarray
         if self.kernel == "linear":
             phi = linear_kernel(X, Y)
         elif self.kernel == "rbf":
             self._compute_gamma(X=X)
-            phi = rbf_kernel(X, Y, self._gamma)
+            phi = rbf_kernel(X, Y, self.gamma_)
         elif self.kernel == "poly":
             self._compute_gamma(X=X)
-            phi = polynomial_kernel(X, Y, self.degree, self._gamma, self.coef0)
+            phi = polynomial_kernel(X, Y, self.degree, self.gamma_, self.coef0)
         elif callable(self.kernel):
             phi = self.kernel(X, Y)
             if len(phi.shape) != 2:
@@ -133,3 +140,14 @@ class BaseRVM(BaseEstimator, ABC):
         if self.include_bias:
             phi = np.append(phi, np.ones((phi.shape[0], 1)), axis=1)
         return phi
+
+    def _initialize_alpha(self, phi: np.ndarray,
+                          target: np.ndarray) -> np.ndarray:
+        n_basis: int = phi.shape[1]
+        proj: np.ndarray = np.matmul(phi.T, target)
+        phi_norm: np.ndarray = np.linalg.norm(phi, axis=1)
+        proj_norm: np.ndarray = np.divide(proj, phi_norm)
+        idx: int = np.argmax(proj_norm)
+        alpha: np.ndarray = np.zeros(shape=(n_basis, n_basis))
+        np.fill_diagonal(alpha, val=np.inf)
+        return np.array([])

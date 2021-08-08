@@ -66,3 +66,12 @@ print("onnx projection")
 print(results[1])
 diff = np.sum(projection.flatten() - results[1].flatten())
 print(str.format("diff = {}", diff))
+#%%
+for output in sess.get_outputs():
+    print(output)
+
+#%%
+sess = rt.InferenceSession(onx.SerializeToString())
+results = sess.run(['proj'], {sess.get_inputs()[0].name: X.astype(np.float64)})
+#%%
+print(results)

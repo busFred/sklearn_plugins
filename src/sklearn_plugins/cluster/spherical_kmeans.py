@@ -14,6 +14,9 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, normalize, scale
 from sklearn.utils import check_random_state
 
+from ._onnx_transform import (spherical_kmeans_converter,
+                              spherical_kmeans_shape_calculator)
+
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
 
@@ -57,7 +60,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
     normalize: bool
     standardize: bool
     n_init: int
-    n_processes: Union[int, None]
     max_iter: int
     tol: float
     random_state: Union[int, RandomState, None]
@@ -117,7 +119,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
                  standardize: bool = True,
                  whiten: bool = True,
                  n_init: int = 10,
-                 n_processes: int = None,
                  max_iter: int = 100,
                  tol: float = 0.01,
                  random_state: Union[int, random.RandomState, None] = None,
@@ -142,7 +143,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         self.standardize = standardize
         self.whiten = whiten
         self.n_init = n_init
-        self.n_processes = n_processes
         self.max_iter = max_iter
         self.tol = tol
         self.random_state = random_state
@@ -166,7 +166,7 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         Args:
             X (np.ndarray): (n_samples, n_features) Training instances to cluster. It must be noted that the data will be converted to C ordering, which will cause a memory copy if the given data is not C-contiguous. If a sparse matrix is passed, a copy will be made if it’s not in CSR format.
             y (Ignored): Not used, present here for API consistency by convention.
-        
+
         Returns:
             self (SphericalKMeans): Fitted estimator
         """
@@ -185,22 +185,8 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
                                                                 np.uint32).max,
                                                             size=self.n_init,
                                                             dtype=np.uint32)
-            n_processes: int = self.__get_n_usable_processes()
-            if n_processes == 1:
-                self.__centroids_, self.__inertia_ = self.__fit_kmeans(
-                    X, self.random_state)
-            else:
-                random_states_list: np.ndarray = np.array_split(
-                    random_seeds, n_processes)
-                ret_queue: mp.Queue = mp.Queue()
-                args_list: List[Tuple[np.ndarray, int, mp.Queue]] = [
-                    (X, seeds, ret_queue) for seeds in random_states_list
-                ]
-                centroids_list, inertia_list = self.__fit_kmeans_processes(
-                    args_list, ret_queue)
-                min_index: int = np.argmin(inertia_list)
-                self.__inertia_ = inertia_list[min_index]
-                self.__centroids_ = centroids_list[min_index]
+            self.__centroids_, self.__inertia_ = self.__fit_kmeans(
+                X, self.random_state)
         _, self.__labels_ = self.__calculate_projections_labels(
             X, self.__centroids_)
         return self
@@ -491,80 +477,6 @@ class SphericalKMeans(BaseEstimator, ClusterMixin, TransformerMixin):
         inertia: float = self.__calculate_inertia(X, labels, centroids)
         return centroids, inertia
 
-    def __fit_kmeans_single_process(self, X: np.ndarray,
-                                    random_states: List[Union[int, RandomState,
-                                                              None]],
-                                    ret_queue: mp.Queue):
-        """Use singel process to restart KMeans len(random_states) times.
-
-        Given a list of random_states, exaust all the random_state with self.__fit_kmeans and put the result back to ret_queue.
-
-        Args:
-            X (np.ndarray): New data to transform.
-            random_states (List[Union[int, RandomState, None]]): A List of random state used to initialize centroids for each fit_kmeans.
-            ret_queue (mp.Queue): mp.Queue used to store result.
-        """
-        centroids_list: List[np.ndarray] = list()
-        inertia_list: List[float] = list()
-        for random_state in random_states:
-            centroids, inertia = self.__fit_kmeans(X, random_state)
-            centroids_list.append(centroids)
-            inertia_list.append(inertia)
-        ret_queue.put((centroids_list, inertia_list))
-
-    def __fit_kmeans_processes(
-            self, args_list: List[Tuple[np.ndarray, int, mp.Queue]],
-            ret_queue: mp.Queue) -> Tuple[List[np.ndarray], List[float]]:
-        """Use multiple process to fit KMeans len(args_list) times.
-
-        Given a list of arguments to self.__fit_kmeans_single_process, exaust all the args with self.__fit_kmeans_single_process and return (List[centroids], List[inertia]).
-
-        Args:
-            args_list (List[Tuple[np.ndarray, int, mp.Queue]]): A list of arguments used to execute self.__fit_kmeans_single_process
-            ret_queue (mp.Queue): mp.Queue used to store result.
-
-        Returns:
-            centroids (List[np.ndarray]): List of fitted cluster centroids.
-            inertia (List[float]): List of inertia.
-        """
-        processes: List[mp.Process] = list()
-        for args in args_list:
-            p = mp.Process(target=self.__fit_kmeans_single_process, args=args)
-            p.start()
-            processes.append(p)
-        centroids_list: List[np.ndarray] = list()
-        inertia_list: List[float] = list()
-        for p in processes:
-            p.join()
-            centroids, inertia = ret_queue.get()
-            centroids_list.extend(centroids)
-            inertia_list.extend(inertia)
-        return centroids_list, inertia_list
-
-    def __get_n_usable_processes(self) -> int:
-        """Get usable processes.
-
-        Returns:
-            int: Usable processes.
-        """
-        max_n_processes: int
-        try:
-            max_n_processes = len(os.sched_getaffinity(0))
-        except AttributeError:
-            cpu_count: Union[int, None] = os.cpu_count()
-            if cpu_count is not None:
-                max_n_processes = cpu_count
-            else:
-                max_n_processes = 1
-        if self.n_processes is None:
-            return max_n_processes
-        elif self.n_processes < max_n_processes:
-            return self.n_processes
-        return max_n_processes
-
-
-from ._onnx_transform import (spherical_kmeans_converter,
-                              spherical_kmeans_shape_calculator)
 
 update_registered_converter(SphericalKMeans, "SklearnPluginsSphericalKMeans",
                             spherical_kmeans_shape_calculator,

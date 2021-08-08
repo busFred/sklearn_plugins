@@ -66,34 +66,16 @@ class BaseRVM(BaseEstimator, ABC):
         return self
 
     # protected
-    def _apply_kernel(self, X: np.ndarray, y: np.ndarray):
-        """Apply the selected kernel function to the data."""
-        phi: np.ndarray
-        if self.kernel == "linear":
-            phi = linear_kernel(X, y)
-        elif self.kernel == "rbf":
-            self._compute_gamma(X=X)
-            phi = rbf_kernel(X, y, self._gamma)
-        elif self.kernel == "poly":
-            self._compute_gamma(X=X)
-            phi = polynomial_kernel(X, y, self.degree, self._gamma, self.coef0)
-        elif callable(self.kernel):
-            phi = self.kernel(X, y)
-            if len(phi.shape) != 2:
-                raise ValueError(
-                    "Custom kernel function did not return 2D matrix")
-            if phi.shape[0] != X.shape[0]:
-                raise ValueError(
-                    "Custom kernel function did not return matrix with rows"
-                    " equal to number of data points."
-                    "")
-        else:
-            raise ValueError("Kernel selection is invalid.")
-        if self.include_bias:
-            phi = np.append(phi, np.ones((phi.shape[0], 1)), axis=1)
-        return phi
-
     def _compute_gamma(self, X: np.ndarray):
+        """Compute self._gamma
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) input data
+
+        Raises:
+            ValueError: When 'gamma' is a string, it should be either "scale" or "auto".
+            TypeError: Argument 'gamma' should only be str or float.
+        """
         n_features: int = X.shape[1]
         if isinstance(self.gamma, str):
             if self.gamma == "scale":
@@ -103,12 +85,51 @@ class BaseRVM(BaseEstimator, ABC):
                 self._gamma = 1.0 / n_features
             else:
                 raise ValueError(
-                    "When 'gamma' is a string, it should be either 'scale' or "
-                    "'auto'. Got '{}' instead.".format(self.gamma))
+                    "When 'gamma' is a string, it should be either 'scale' or 'auto'. Got '{}' instead."
+                    .format(self.gamma))
         elif isinstance(self.gamma, float):
             self._gamma = self.gamma
         else:
-            raise ValueError(
+            raise TypeError(
                 str.format(
-                    "'gamma' should be of type string or float, but 'gamma' is of type {} and has value {}",
+                    "Argument 'gamma' should be of type str or float, but 'gamma' is of type {} and has value {}",
                     type(self.gamma), self.gamma))
+
+    def _compute_kernel(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+        """Compute kernel matrix.
+
+        Args:
+            X (np.ndarray): (n_samples_X, n_features)
+            Y (np.ndarray): (n_samples_Y, n_features)
+
+        Raises:
+            ValueError: "Custom kernel function did not return 2D matrix"
+            ValueError: "Custom kernel function did not return matrix with rows equal to number of data points."
+            ValueError: "Kernel selection is invalid."
+
+        Returns:
+            np.ndarray: (n_samples_X, n_samples_Y)
+        """
+        phi: np.ndarray
+        if self.kernel == "linear":
+            phi = linear_kernel(X, Y)
+        elif self.kernel == "rbf":
+            self._compute_gamma(X=X)
+            phi = rbf_kernel(X, Y, self._gamma)
+        elif self.kernel == "poly":
+            self._compute_gamma(X=X)
+            phi = polynomial_kernel(X, Y, self.degree, self._gamma, self.coef0)
+        elif callable(self.kernel):
+            phi = self.kernel(X, Y)
+            if len(phi.shape) != 2:
+                raise ValueError(
+                    "Custom kernel function did not return 2D matrix")
+            if phi.shape[0] != X.shape[0]:
+                raise ValueError(
+                    "Custom kernel function did not return matrix with rows equal to number of data points."
+                )
+        else:
+            raise ValueError("Kernel selection is invalid.")
+        if self.include_bias:
+            phi = np.append(phi, np.ones((phi.shape[0], 1)), axis=1)
+        return phi

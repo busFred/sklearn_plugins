@@ -266,11 +266,12 @@ class BaseRVM(BaseEstimator, ABC):
         """Compute sparsity_matrix and quality_matrix
 
         Args:
-            beta_matrix (np.ndarray): [description]
-            target_hat (np.ndarray): [description]
+            beta_matrix (np.ndarray): (n_samples, n_samples) or (N, N) the beta matrix with beta_i on the diagonal.
+            target_hat (np.ndarray): (n_samples) regression should be target and classification should be current pred.
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]: [description]
+            sparsity_matrix (np.ndarray): (n_basis_vector, n_basis_vector) or (M, M)
+            quality_matrix (np.ndarray): (n_basis_vector, n_basis_vector) or (M, M)
         """
         phi: np.ndarray = self.__phi_active
         phi_tr_beta: np.ndarray = phi.T @ beta_matrix

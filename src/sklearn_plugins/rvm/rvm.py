@@ -38,6 +38,7 @@ class BaseRVM(BaseEstimator, ABC):
     gamma_: float
     weight_posterior_cov_: Union[np.ndarray, None]  # aka sigma
     weight_posterior_mean_: Union[np.ndarray, None]  # aka mu_mp
+    design_matrix_: Union[np.ndarray, None]  # aka phi
 
     def __init__(
             self,
@@ -63,6 +64,9 @@ class BaseRVM(BaseEstimator, ABC):
         self.random_state = random_state
         # inferred variables
         self.gamma_ = 1.0
+        self.weight_posterior_cov_ = None
+        self.weight_posterior_mean_ = None
+        self.design_matrix_ = None
 
     @abstractmethod
     def fit(self,
@@ -80,12 +84,14 @@ class BaseRVM(BaseEstimator, ABC):
                 alpha_matrix=alpha_matrix)
             alpha_matrix_active: np.ndarray = alpha_matrix[:, active_basis_mask][
                 active_basis_mask, :]
-            phi_active: np.ndarray = phi[:, active_basis_mask]
+            self.design_matrix_ = phi[:, active_basis_mask]
+            target_hat: np.ndarray = self._compute_target_hat(X=X)
             self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
-                phi=phi_active,
-                target=y,
+                target_hat=target_hat,
                 alpha_matrix=alpha_matrix_active,
                 beta_matrix=beta_matrix)
+            sparsity_matrix, quality_matrix = self._compute_sparsity_quality(
+                beta_matrix=beta_matrix, target_hat=target_hat)
 
         return self
 
@@ -233,10 +239,8 @@ class BaseRVM(BaseEstimator, ABC):
 
     @abstractmethod
     def _compute_weight_posterior(
-            self, phi: np.ndarray, target: np.ndarray,
-            alpha_matrix: np.ndarray,
+            self, target_hat: np.ndarray, alpha_matrix: np.ndarray,
             beta_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-
         pass
 
     def _get_active_basis_mask(self, alpha_matrix: np.ndarray) -> np.ndarray:
@@ -252,7 +256,37 @@ class BaseRVM(BaseEstimator, ABC):
         active_basis_mask: np.ndarray = (alpha_vector != np.inf)
         return active_basis_mask
 
-    def _compute_sparsity_quality(self, phi: np.ndarray,
-                                  alpha_matrix: np.ndarray,
-                                  beta_matrix: np.ndarray):
+    @abstractmethod
+    def _compute_target_hat(self, X: np.ndarray) -> np.ndarray:
         pass
+
+    def _compute_sparsity_quality(
+            self, beta_matrix: np.ndarray,
+            target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute sparsity_matrix and quality_matrix
+
+        Args:
+            beta_matrix (np.ndarray): [description]
+            target_hat (np.ndarray): [description]
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: [description]
+        """
+        phi: np.ndarray = self.__phi_active
+        phi_tr_beta: np.ndarray = phi.T @ beta_matrix
+        phi_tr_beta_phi_sigma: np.ndarray = phi_tr_beta @ phi @ self.weight_posterior_cov_ @ phi_tr_beta
+        sparsity_matrix: np.ndarray = (phi_tr_beta @ phi) - (
+            phi_tr_beta_phi_sigma @ phi)
+        quality_matrix: np.ndarray = (phi_tr_beta @ target_hat) - (
+            phi_tr_beta_phi_sigma @ phi)
+        return sparsity_matrix, quality_matrix
+
+    # private
+    @property
+    def __phi_active(self) -> np.ndarray:
+        phi_active: np.ndarray
+        if self.design_matrix_ is not None:
+            phi_active = self.design_matrix_
+        else:
+            raise ValueError("self.design_matrix_ is None")
+        return phi_active

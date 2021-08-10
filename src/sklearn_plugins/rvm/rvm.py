@@ -78,12 +78,14 @@ class BaseRVM(BaseEstimator, ABC):
         for _ in range(self.max_iter):
             active_basis_mask: np.ndarray = self._get_active_basis_mask(
                 alpha_matrix=alpha_matrix)
+            alpha_matrix_active: np.ndarray = alpha_matrix[:, active_basis_mask][
+                active_basis_mask, :]
+            phi_active: np.ndarray = phi[:, active_basis_mask]
             self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
-                phi=phi,
+                phi=phi_active,
                 target=y,
-                alpha_matrix=alpha_matrix,
-                beta_matrix=beta_matrix,
-                active_basis_mask=active_basis_mask)
+                alpha_matrix=alpha_matrix_active,
+                beta_matrix=beta_matrix)
 
         return self
 
@@ -194,7 +196,7 @@ class BaseRVM(BaseEstimator, ABC):
             idx (int): index of the selected vector
             phi[:, idx] (np.ndarray): (n_samples, 1) the selected basis vector
         """
-        proj: np.ndarray = np.matmul(phi.T, target)
+        proj: np.ndarray = phi.T @ target
         phi_norm: np.ndarray = np.linalg.norm(phi, axis=1)
         proj_norm: np.ndarray = np.divide(proj, phi_norm)
         idx: int = np.argmax(proj_norm)
@@ -223,9 +225,8 @@ class BaseRVM(BaseEstimator, ABC):
                                            fill_value=np.inf)
         basis_norm: float = np.linalg.norm(basis_vector, axis=0)
         beta: float = beta_matrix[idx, idx]
-        alpha_i: float = basis_norm**2 / (
-            (np.matmul(x1=basis_vector.T, x2=target)**2 / basis_norm**2) -
-            (1 / beta))
+        alpha_i: float = basis_norm**2 / ((
+            (basis_vector.T @ target)**2 / basis_norm**2) - (1 / beta))
         alpha_vector[idx] = alpha_i
         alpha_matrix: np.ndarray = np.diag(v=alpha_vector)
         return alpha_matrix
@@ -233,8 +234,8 @@ class BaseRVM(BaseEstimator, ABC):
     @abstractmethod
     def _compute_weight_posterior(
             self, phi: np.ndarray, target: np.ndarray,
-            alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
-            active_basis_mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+            alpha_matrix: np.ndarray,
+            beta_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
         pass
 
@@ -251,4 +252,7 @@ class BaseRVM(BaseEstimator, ABC):
         active_basis_mask: np.ndarray = (alpha_vector != np.inf)
         return active_basis_mask
 
-    
+    def _compute_sparsity_quality(self, phi: np.ndarray,
+                                  alpha_matrix: np.ndarray,
+                                  beta_matrix: np.ndarray):
+        pass

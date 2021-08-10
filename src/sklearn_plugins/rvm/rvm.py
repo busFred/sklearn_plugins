@@ -2,26 +2,28 @@ from abc import ABC, abstractmethod
 from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
-from numpy.core.fromnumeric import shape
 from numpy.random import RandomState
 from sklearn.base import BaseEstimator
-from sklearn.metrics.pairwise import (linear_kernel, rbf_kernel,
-                                      polynomial_kernel)
+from sklearn.metrics.pairwise import (linear_kernel, polynomial_kernel,
+                                      rbf_kernel)
 
 
 class BaseRVM(BaseEstimator, ABC):
     """BaseRVM
 
-    Args:
+    Attributes:
         kernel (Union[str, Callable[[np.ndarray, np.ndarray], np.ndarray]], optional): The kernel function to be used. Defaults to 'rbf'.
         degree (int, optional): Degree of the polynomial kernel function (‘poly’). Ignored by all other kernels. Defaults to 3.
         gamma (Union[str, float], optional): Kernel coefficient for ‘rbf’, ‘poly’ and ‘sigmoid’. Defaults to 'scale'.
         coef0 (float, optional): Independent term in kernel function. It is only significant in ‘poly’ and ‘sigmoid’. Defaults to 0.0.
-        include_bias (bool, optional): include bias in the polynomial. Defaults to True.
+        include_bias (bool, optional): Wheather or not to include bias in the design matrix. Defaults to True.
         tol (float, optional): tolerance for stopping criterion. Defaults to 1e-3.
         verbose (bool, optional): [description]. Defaults to False.
         max_iter (int, optional): [description]. Defaults to -1.
         random_state (Optional[Union[int, RandomState]], optional): [description]. Defaults to None.
+
+        gamma_ (float): Actual Kernel coefficient used to compute ‘rbf’, ‘poly’ and ‘sigmoid’
+        sigma_ (Union[np.ndarray, None]): The posterior 
     """
     kernel: Union[str, Callable[[np.ndarray, np.ndarray], np.ndarray]]
     degree: int
@@ -34,6 +36,8 @@ class BaseRVM(BaseEstimator, ABC):
     random_state: Union[int, RandomState, None]
 
     gamma_: float
+    weight_posterior_cov_: Union[np.ndarray, None]  # aka sigma
+    weight_posterior_mean_: Union[np.ndarray, None]  # aka mu_mp
 
     def __init__(
             self,
@@ -70,6 +74,17 @@ class BaseRVM(BaseEstimator, ABC):
         beta_matrix: np.ndarray = self._compute_beta_matrix(phi=phi, target=y)
         alpha_matrix: np.ndarray = self._init_alpha_matrix(
             phi=phi, target=y, beta_matrix=beta_matrix)
+        prev_alpha_matrix: np.ndarray = np.copy(a=alpha_matrix)
+        for _ in range(self.max_iter):
+            active_basis_mask: np.ndarray = self._get_active_basis_mask(
+                alpha_matrix=alpha_matrix)
+            self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
+                phi=phi,
+                target=y,
+                alpha_matrix=alpha_matrix,
+                beta_matrix=beta_matrix,
+                active_basis_mask=active_basis_mask)
+
         return self
 
     @abstractmethod
@@ -214,3 +229,26 @@ class BaseRVM(BaseEstimator, ABC):
         alpha_vector[idx] = alpha_i
         alpha_matrix: np.ndarray = np.diag(v=alpha_vector)
         return alpha_matrix
+
+    @abstractmethod
+    def _compute_weight_posterior(
+            self, phi: np.ndarray, target: np.ndarray,
+            alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
+            active_basis_mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+
+        pass
+
+    def _get_active_basis_mask(self, alpha_matrix: np.ndarray) -> np.ndarray:
+        """Get active basis mask
+
+        Args:
+            alpha_matrix (np.ndarray): (n_basis_vector, n_basis_vector) or (M, M)
+
+        Returns:
+            active_basis_mask (np.ndarray): (n_basis_vecor) or (M,) with all elements being boolean value
+        """
+        alpha_vector: np.ndarray = np.diagonal(a=alpha_matrix)
+        active_basis_mask: np.ndarray = (alpha_vector != np.inf)
+        return active_basis_mask
+
+    

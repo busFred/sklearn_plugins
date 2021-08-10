@@ -67,10 +67,9 @@ class BaseRVM(BaseEstimator, ABC):
             sample_weight: Optional[np.ndarray] = None) -> "BaseRVM":
         phi: np.ndarray = self._apply_kernel_func(X=X,
                                                   Y=X)  # the design matrix
-        beta: np.ndarray = self._compute_beta_matrix(phi=phi, target=y)
-        alpha_matrix: np.ndarray = self._init_alpha_matrix(phi=phi,
-                                                           target=y,
-                                                           beta=beta)
+        beta_matrix: np.ndarray = self._compute_beta_matrix(phi=phi, target=y)
+        alpha_matrix: np.ndarray = self._init_alpha_matrix(
+            phi=phi, target=y, beta_matrix=beta_matrix)
         return self
 
     @abstractmethod

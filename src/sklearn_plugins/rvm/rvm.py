@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
 from numpy.random import RandomState
@@ -47,10 +47,17 @@ class BaseRVM(BaseEstimator, ABC):
         self.gamma_ = 1.0
 
     @abstractmethod
-    def predict(self, X: np.ndarray, y: np.ndarray) -> "BaseRVM":
+    def fit(self,
+            X: np.ndarray,
+            y: np.ndarray,
+            sample_weight: Optional[np.ndarray] = None) -> "BaseRVM":
+        return self
+
+    @abstractmethod
+    def predict(self, X: np.ndarray) -> np.ndarray:
         # from setp 2 to step 11
         # regression override predict method and initialize target precision sigma_squared (precision of y)
-        return self
+        pass
 
     def get_params(self, deep: bool = False):
         """
@@ -102,7 +109,7 @@ class BaseRVM(BaseEstimator, ABC):
                     "Argument 'gamma' should be of type str or float, but 'gamma' is of type {} and has value {}",
                     type(self.gamma), self.gamma))
 
-    def _compute_kernel(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    def _compute_kernel_func(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         """Compute kernel matrix.
 
         Args:
@@ -141,13 +148,20 @@ class BaseRVM(BaseEstimator, ABC):
             phi = np.append(phi, np.ones((phi.shape[0], 1)), axis=1)
         return phi
 
-    def _initialize_alpha(self, phi: np.ndarray,
-                          target: np.ndarray) -> np.ndarray:
-        n_basis: int = phi.shape[1]
+    def _select_basis_vector(self, phi: np.ndarray,
+                             target: np.ndarray) -> Tuple[int, np.ndarray]:
+        """Select the largest normalized projection onto the target vector.
+
+        Args:
+            phi (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003.
+            target (np.ndarray): (n_sampels, ) the target vector.
+
+        Returns:
+            idx (int): index of the selected vector
+            phi[:, idx] (np.ndarray): (n_samples, 1) the selected basis vector
+        """
         proj: np.ndarray = np.matmul(phi.T, target)
         phi_norm: np.ndarray = np.linalg.norm(phi, axis=1)
         proj_norm: np.ndarray = np.divide(proj, phi_norm)
         idx: int = np.argmax(proj_norm)
-        alpha: np.ndarray = np.zeros(shape=(n_basis, n_basis))
-        np.fill_diagonal(alpha, val=np.inf)
-        return np.array([])
+        return idx, phi[:, idx]

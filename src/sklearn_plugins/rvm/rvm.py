@@ -72,38 +72,42 @@ class BaseRVM(BaseEstimator, ABC):
             X: np.ndarray,
             y: np.ndarray,
             sample_weight: Optional[np.ndarray] = None) -> "BaseRVM":
-        phi_matrix: np.ndarray = self._apply_kernel_func(
+        phi_matrix: np.ndarray = self.__apply_kernel_func(
             X=X, Y=X)  # the design matrix
         beta_matrix: np.ndarray = self._compute_beta_matrix(
             phi_matrix=phi_matrix, target=y)
-        curr_basis_idx, curr_basis_vector = self._select_basis_vector(
+        curr_basis_idx, curr_basis_vector = self.__select_basis_vector(
             phi_matrix=phi_matrix, target=y)
-        alpha_matrix: np.ndarray = self._init_alpha_matrix(
+        alpha_matrix: np.ndarray = self.__init_alpha_matrix(
             curr_basis_idx=curr_basis_idx,
             curr_basis_vector=curr_basis_vector,
             phi_matrix=phi_matrix,
             target=y,
             beta_matrix=beta_matrix)
+        active_basis_mask: np.ndarray = self.__get_active_basis_mask(
+            alpha_matrix=alpha_matrix)
+        alpha_matrix_active: np.ndarray = alpha_matrix[:, active_basis_mask][
+            active_basis_mask, :]
+        self.design_matrix_ = phi_matrix[:, active_basis_mask]
         prev_alpha_matrix: np.ndarray = np.copy(a=alpha_matrix)
         for _ in range(self.max_iter):
-            active_basis_mask: np.ndarray = self._get_active_basis_mask(
-                alpha_matrix=alpha_matrix)
-            alpha_matrix_active: np.ndarray = alpha_matrix[:, active_basis_mask][
-                active_basis_mask, :]
-            self.design_matrix_ = phi_matrix[:, active_basis_mask]
             target_hat: np.ndarray = self._compute_target_hat(X=X)
             self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
                 target_hat=target_hat,
                 alpha_matrix_active=alpha_matrix_active,
                 beta_matrix=beta_matrix)
-            sparsity, quality = self._compute_sparsity_quality(
+            sparsity, quality = self.__compute_sparsity_quality(
                 beta_matrix=beta_matrix, target_hat=target_hat)
-            active_basis_mask, alpha_matrix_active = self._prune(
+            active_basis_mask, alpha_matrix_active = self.__prune(
                 curr_basis_idx=curr_basis_idx,
                 phi_matrix=phi_matrix,
                 alpha_matrix=alpha_matrix,
                 sparsity=sparsity,
                 quality=quality)
+            has_converged: bool = self.__has_converged(
+                alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha_matrix)
+            if has_converged == True:
+                break
         return self
 
     @abstractmethod
@@ -132,8 +136,24 @@ class BaseRVM(BaseEstimator, ABC):
             setattr(self, parameter, value)
         return self
 
-    # protected
-    def _compute_gamma(self, X: np.ndarray):
+    # protected abstract
+    @abstractmethod
+    def _compute_beta_matrix(self, phi_matrix: np.ndarray,
+                             target: np.ndarray) -> np.ndarray:
+        pass
+
+    @abstractmethod
+    def _compute_weight_posterior(
+            self, target_hat: np.ndarray, alpha_matrix_active: np.ndarray,
+            beta_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        pass
+
+    @abstractmethod
+    def _compute_target_hat(self, X: np.ndarray) -> np.ndarray:
+        pass
+
+    # private
+    def __compute_gamma(self, X: np.ndarray):
         """Compute self._gamma
 
         Args:
@@ -162,7 +182,7 @@ class BaseRVM(BaseEstimator, ABC):
                     "Argument 'gamma' should be of type str or float, but 'gamma' is of type {} and has value {}",
                     type(self.gamma), self.gamma))
 
-    def _apply_kernel_func(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    def __apply_kernel_func(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         """Apply kernel function.
 
         Args:
@@ -181,10 +201,10 @@ class BaseRVM(BaseEstimator, ABC):
         if self.kernel == "linear":
             phi = linear_kernel(X, Y)
         elif self.kernel == "rbf":
-            self._compute_gamma(X=X)
+            self.__compute_gamma(X=X)
             phi = rbf_kernel(X, Y, self.gamma_)
         elif self.kernel == "poly":
-            self._compute_gamma(X=X)
+            self.__compute_gamma(X=X)
             phi = polynomial_kernel(X, Y, self.degree, self.gamma_, self.coef0)
         elif callable(self.kernel):
             phi = self.kernel(X, Y)
@@ -201,8 +221,8 @@ class BaseRVM(BaseEstimator, ABC):
             phi = np.append(phi, np.ones((phi.shape[0], 1)), axis=1)
         return phi
 
-    def _select_basis_vector(self, phi_matrix: np.ndarray,
-                             target: np.ndarray) -> Tuple[int, np.ndarray]:
+    def __select_basis_vector(self, phi_matrix: np.ndarray,
+                              target: np.ndarray) -> Tuple[int, np.ndarray]:
         """Select the largest normalized projection onto the target vector.
 
         Args:
@@ -219,15 +239,10 @@ class BaseRVM(BaseEstimator, ABC):
         idx: int = np.argmax(proj_norm)
         return idx, phi_matrix[:, idx]
 
-    @abstractmethod
-    def _compute_beta_matrix(self, phi_matrix: np.ndarray,
-                             target: np.ndarray) -> np.ndarray:
-        pass
-
-    def _init_alpha_matrix(self, curr_basis_idx: int,
-                           curr_basis_vector: np.ndarray,
-                           phi_matrix: np.ndarray, target: np.ndarray,
-                           beta_matrix: np.ndarray) -> np.ndarray:
+    def __init_alpha_matrix(self, curr_basis_idx: int,
+                            curr_basis_vector: np.ndarray,
+                            phi_matrix: np.ndarray, target: np.ndarray,
+                            beta_matrix: np.ndarray) -> np.ndarray:
         """Initialize alpha matrix
 
         Args:
@@ -249,13 +264,7 @@ class BaseRVM(BaseEstimator, ABC):
         alpha_matrix: np.ndarray = np.diag(v=alpha_vector)
         return alpha_matrix
 
-    @abstractmethod
-    def _compute_weight_posterior(
-            self, target_hat: np.ndarray, alpha_matrix_active: np.ndarray,
-            beta_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        pass
-
-    def _get_active_basis_mask(self, alpha_matrix: np.ndarray) -> np.ndarray:
+    def __get_active_basis_mask(self, alpha_matrix: np.ndarray) -> np.ndarray:
         """Get active basis mask
 
         Args:
@@ -268,11 +277,7 @@ class BaseRVM(BaseEstimator, ABC):
         active_basis_mask: np.ndarray = (alpha_vector != np.inf)
         return active_basis_mask
 
-    @abstractmethod
-    def _compute_target_hat(self, X: np.ndarray) -> np.ndarray:
-        pass
-
-    def _compute_sparsity_quality(
+    def __compute_sparsity_quality(
             self, beta_matrix: np.ndarray,
             target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Compute sparsity_matrix and quality_matrix
@@ -296,9 +301,9 @@ class BaseRVM(BaseEstimator, ABC):
         quality: np.ndarray = np.diagonal(quality_matrix)
         return sparsity, quality
 
-    def _prune(self, curr_basis_idx: int, phi_matrix: np.ndarray,
-               alpha_matrix: np.ndarray, sparsity: np.ndarray,
-               quality: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def __prune(self, curr_basis_idx: int, phi_matrix: np.ndarray,
+                alpha_matrix: np.ndarray, sparsity: np.ndarray,
+                quality: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Prune design matrix and update alpha matrix according to sparsity and quality analysis.
 
         The method updates the self.__design_matrix, modifies alpha_matrix in place, and then returns the new active_basis_mask.
@@ -323,14 +328,19 @@ class BaseRVM(BaseEstimator, ABC):
             alpha_matrix[curr_basis_idx, curr_basis_idx] = curr_alpha
         else:
             alpha_matrix[curr_basis_idx, curr_basis_idx] = np.inf
-        active_basis_mask: np.ndarray = self._get_active_basis_mask(
+        active_basis_mask: np.ndarray = self.__get_active_basis_mask(
             alpha_matrix=alpha_matrix)
         alpha_matrix_active: np.ndarray = alpha_matrix[:, active_basis_mask][
             active_basis_mask, :]
         self.design_matrix_ = phi_matrix[:, active_basis_mask]
         return active_basis_mask, alpha_matrix_active
 
-    # private
+    def __has_converged(self, alpha_matrix: np.ndarray,
+                        prev_alpha_matrix: np.ndarray) -> bool:
+        alpha_abs_diff: np.ndarray = np.abs(alpha_matrix - prev_alpha_matrix)
+        diff: float = np.nansum(alpha_abs_diff)
+        return True if diff <= self.tol else False
+
     @property
     def __phi_active(self) -> np.ndarray:
         phi_active: np.ndarray

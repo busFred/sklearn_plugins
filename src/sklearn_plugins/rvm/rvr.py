@@ -12,7 +12,7 @@ class RVR(BaseRVM):
     y_var: Union[float, None]
     update_y_var: bool
 
-    beta_: float
+    _beta_: float
 
     def __init__(
             self,
@@ -39,7 +39,7 @@ class RVR(BaseRVM):
                          random_state=random_state)
         self.y_var = y_var
         self.update_y_var = update_y_var
-        self.beta_ = 1 / 1e-6
+        self._beta_ = 1 / 1e-6
 
     @overrides
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -47,32 +47,34 @@ class RVR(BaseRVM):
             X=X, Y=self._phi_active_) @ self._weight_posterior_mean_
         return y
 
-    @overrides
-    def _init_beta_matrix(self, phi_matrix: np.ndarray,
-                          target: np.ndarray) -> np.ndarray:
-        """Compute the beta matrix or B matrix in the paper.
 
-        Args:
-            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) The complete phi matrix.
-            target (np.ndarray): (n_samples, )the target vector of the problem.
+    # @overrides
+    # def _init_alpha_matrix(self, phi_matrix: np.ndarray, target: np.ndarray,
+    #                        beta_matrix: np.ndarray) -> np.ndarray:
+    #     """Initialize alpha matrix
 
-        Returns:
-            beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix B with beta_i on the diagonal.
-        """
-        if self.y_var is None:
-            var: float = np.var(target)
-            if var == 0.0:
-                var = 1e-6
-            else:
-                var = var * 0.1
-            self.beta_ = 1 / var
-        else:
-            self.beta_ = 1 / self.y_var
-        n_samples: int = phi_matrix.shape[0]
-        beta_vector: np.ndarray = np.full(shape=n_samples,
-                                          fill_value=self.beta_)
-        beta_matrix: np.ndarray = np.diagonal(beta_vector)
-        return beta_matrix
+    #     Args:
+    #         curr_basis_idx (int): current basis vector index number
+    #         curr_basis_vector (np.ndarray): (n_samples, 1)current basis vector
+    #         phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
+    #         target (np.ndarray): (n_samples) the target vector.
+    #         beta_matrix (np.ndarray): (n_samples, n_samples) or (N, N) the beta matrix with beta_i on the diagonal.
+
+    #     Returns:
+    #         alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) or (M, M) in Tipping 2003. The complete alpha matrix.
+    #     """
+    #     curr_basis_idx, curr_basis_vector = self.__init_select_basis_vector(
+    #         phi_matrix=phi_matrix, target=target)
+    #     # beta_i = 1 / sigma_i**2
+    #     alpha_vector: np.ndarray = np.full(shape=(phi_matrix.shape[1]),
+    #                                        fill_value=np.inf)
+    #     basis_norm: float = np.linalg.norm(curr_basis_vector, axis=0)
+    #     alpha_i: float = basis_norm**2 / ((
+    #         (curr_basis_vector.T @ target)**2 / basis_norm**2) -
+    #                                       (1 / self._beta_))
+    #     alpha_vector[curr_basis_idx] = alpha_i
+    #     alpha_matrix: np.ndarray = np.diag(v=alpha_vector)
+    #     return alpha_matrix
 
     @overrides
     def _compute_weight_posterior(
@@ -90,9 +92,9 @@ class RVR(BaseRVM):
             weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
         """
         weight_posterior_cov_: np.ndarray = np.linalg.inv(
-            alpha_matrix_active + self.beta_ *
+            alpha_matrix_active + self._beta_ *
             self._weight_posterior_cov_ @ self._weight_posterior_cov_.T)
-        weight_posterior_mean: np.ndarray = self.beta_ * self._weight_posterior_cov_ @ self._phi_active_.T @ target_hat
+        weight_posterior_mean: np.ndarray = self._beta_ * self._weight_posterior_cov_ @ self._phi_active_.T @ target_hat
         return weight_posterior_mean, weight_posterior_cov_
 
     @overrides
@@ -123,7 +125,7 @@ class RVR(BaseRVM):
         alpha_diag_vector: np.ndarray = np.diagonal(alpha_matrix_active)
         cov_diag_vector: np.ndarray = np.diagonal(self._weight_posterior_cov_)
         alpha_diag_vector_dot_cov_diag_vector: float = alpha_diag_vector @ cov_diag_vector
-        self.beta_ = loss_norm**2 / (n_samples - n_active_basis_vectors +
+        self._beta_ = loss_norm**2 / (n_samples - n_active_basis_vectors +
                                      alpha_diag_vector_dot_cov_diag_vector)
-        beta_matrix = np.diagonal(np.zeros_like(beta_matrix), self.beta_)
+        beta_matrix = np.diagonal(np.zeros_like(beta_matrix), self._beta_)
         return beta_matrix

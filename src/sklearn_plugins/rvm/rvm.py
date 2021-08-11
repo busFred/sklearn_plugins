@@ -40,6 +40,7 @@ class BaseRVM(BaseEstimator, ABC):
     weight_posterior_mean_: Union[np.ndarray, None]  # aka mu_mp
     design_matrix_: Union[np.ndarray, None]  # aka phi
 
+    # public
     def __init__(
             self,
             kernel: Union[str, Callable[[np.ndarray, np.ndarray],
@@ -91,7 +92,7 @@ class BaseRVM(BaseEstimator, ABC):
         self.design_matrix_ = phi_matrix[:, active_basis_mask]
         prev_alpha_matrix: np.ndarray = np.copy(a=alpha_matrix)
         for _ in range(self.max_iter):
-            target_hat: np.ndarray = self._compute_target_hat(X=X)
+            target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
             self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
                 target_hat=target_hat,
                 alpha_matrix_active=alpha_matrix_active,
@@ -140,16 +141,46 @@ class BaseRVM(BaseEstimator, ABC):
     @abstractmethod
     def _compute_beta_matrix(self, phi_matrix: np.ndarray,
                              target: np.ndarray) -> np.ndarray:
+        """Compute the beta matrix or B matrix in the paper.
+
+        Args:
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) The complete phi matrix.
+            target (np.ndarray): (n_samples, )the target vector of the problem.
+
+        Returns:
+            beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix B with beta_i on the diagonal.
+        """
         pass
 
     @abstractmethod
     def _compute_weight_posterior(
             self, target_hat: np.ndarray, alpha_matrix_active: np.ndarray,
             beta_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute the "most probable" weight posterior statistics
+
+        Args:
+            target_hat (np.ndarray): (n_samples, ) The target hat vector.
+            alpha_matrix_active (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors) The current active alpha matrix.
+            beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
+
+        Returns:
+            weight_posterior_mean (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
+            weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
+        """
+        # force subclass to return so that the corresponding instance variables will definitely get updated.
         pass
 
     @abstractmethod
-    def _compute_target_hat(self, X: np.ndarray) -> np.ndarray:
+    def _compute_target_hat(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Compute target hat
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) The input vector.
+            y (np.ndarray): (n_samples, )The ground truth target.
+
+        Returns:
+            target_hat (np.ndarray): (n_samples, ) The predicted target.
+        """
         pass
 
     # private

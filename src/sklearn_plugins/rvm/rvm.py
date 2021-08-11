@@ -195,31 +195,34 @@ class BaseRVM(BaseEstimator, ABC):
             ValueError: "Kernel selection is invalid."
 
         Returns:
-            phi (np.ndarray): (n_samples_X, n_samples_Y) or (n_samples_X, M)
+            phi_matrix (np.ndarray): (n_samples_X, n_samples_Y) or (n_samples_X, M)
         """
-        phi: np.ndarray
+        phi_matrix: np.ndarray
         if self.kernel == "linear":
-            phi = linear_kernel(X, Y)
+            phi_matrix = linear_kernel(X, Y)
         elif self.kernel == "rbf":
             self.__compute_gamma(X=X)
-            phi = rbf_kernel(X, Y, self.gamma_)
+            phi_matrix = rbf_kernel(X, Y, self.gamma_)
         elif self.kernel == "poly":
             self.__compute_gamma(X=X)
-            phi = polynomial_kernel(X, Y, self.degree, self.gamma_, self.coef0)
+            phi_matrix = polynomial_kernel(X, Y, self.degree, self.gamma_,
+                                           self.coef0)
         elif callable(self.kernel):
-            phi = self.kernel(X, Y)
-            if len(phi.shape) != 2:
+            phi_matrix = self.kernel(X, Y)
+            if len(phi_matrix.shape) != 2:
                 raise ValueError(
                     "Custom kernel function did not return 2D matrix")
-            if phi.shape[0] != X.shape[0]:
+            if phi_matrix.shape[0] != X.shape[0]:
                 raise ValueError(
                     "Custom kernel function did not return matrix with rows equal to number of data points."
                 )
         else:
             raise ValueError("Kernel selection is invalid.")
         if self.include_bias:
-            phi = np.append(phi, np.ones((phi.shape[0], 1)), axis=1)
-        return phi
+            phi_matrix = np.append(phi_matrix,
+                                   np.ones((phi_matrix.shape[0], 1)),
+                                   axis=1)
+        return phi_matrix
 
     def __select_basis_vector(self, phi_matrix: np.ndarray,
                               target: np.ndarray) -> Tuple[int, np.ndarray]:
@@ -231,13 +234,14 @@ class BaseRVM(BaseEstimator, ABC):
 
         Returns:
             idx (int): index of the selected vector
-            phi[:, idx] (np.ndarray): (n_samples, 1) the selected basis vector
+            curr_basis_vector (np.ndarray): (n_samples, 1) the selected basis vector.
         """
         proj: np.ndarray = phi_matrix.T @ target
         phi_norm: np.ndarray = np.linalg.norm(phi_matrix, axis=1)
         proj_norm: np.ndarray = np.divide(proj, phi_norm)
         idx: int = np.argmax(proj_norm)
-        return idx, phi_matrix[:, idx]
+        curr_basis_vector: np.ndarray = phi_matrix[:, idx]
+        return idx, curr_basis_vector
 
     def __init_alpha_matrix(self, curr_basis_idx: int,
                             curr_basis_vector: np.ndarray,
@@ -246,12 +250,14 @@ class BaseRVM(BaseEstimator, ABC):
         """Initialize alpha matrix
 
         Args:
+            curr_basis_idx (int): current basis vector index number
+            curr_basis_vector (np.ndarray): (n_samples, 1)current basis vector
             phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
             target (np.ndarray): (n_samples) the target vector.
             beta_matrix (np.ndarray): (n_samples, n_samples) or (N, N) the beta matrix with beta_i on the diagonal.
 
         Returns:
-            alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) or (M, M) in Tipping 2003. the alpha matrix
+            alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) or (M, M) in Tipping 2003. The complete alpha matrix.
         """
         # beta_i = 1 / sigma_i**2
         alpha_vector: np.ndarray = np.full(shape=(phi_matrix.shape[1]),
@@ -268,7 +274,7 @@ class BaseRVM(BaseEstimator, ABC):
         """Get active basis mask
 
         Args:
-            alpha_matrix (np.ndarray): (n_basis_vector, n_basis_vector) or (M, M)
+            alpha_matrix (np.ndarray): (n_basis_vector, n_basis_vector) or (M, M). The complete alpha matrix.
 
         Returns:
             active_basis_mask (np.ndarray): (n_basis_vecor) or (M,) with all elements being boolean value
@@ -337,12 +343,29 @@ class BaseRVM(BaseEstimator, ABC):
 
     def __has_converged(self, alpha_matrix: np.ndarray,
                         prev_alpha_matrix: np.ndarray) -> bool:
+        """Determine whether the algorithm has converged.
+
+        Args:
+            alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) The current complete alpha matrix.
+            prev_alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) The previous alpha matrix.
+
+        Returns:
+            bool: True if has converged, False otherwise.
+        """
         alpha_abs_diff: np.ndarray = np.abs(alpha_matrix - prev_alpha_matrix)
         diff: float = np.nansum(alpha_abs_diff)
         return True if diff <= self.tol else False
 
     @property
     def __phi_active(self) -> np.ndarray:
+        """self.__phi_active is self.design_matrix_
+
+        Raises:
+            ValueError: if self.design_matrix_ is None
+
+        Returns:
+            self.design_matrix_ np.ndarray: (n_samples, n_basis_vectors_active)
+        """
         phi_active: np.ndarray
         if self.design_matrix_ is not None:
             phi_active = self.design_matrix_

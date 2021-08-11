@@ -39,8 +39,8 @@ class BaseRVM(BaseEstimator, ABC):
     weight_posterior_cov_: Union[np.ndarray, None]  # aka sigma
     weight_posterior_mean_: Union[np.ndarray, None]  # aka mu_mp
     design_matrix_: Union[np.ndarray, None]  # aka phi
-    sparsity: Union[np.ndarray, None]
-    quality: Union[np.ndarray, None]
+    sparsity_: Union[np.ndarray, None]
+    quality_: Union[np.ndarray, None]
 
     # public
     def __init__(
@@ -70,8 +70,8 @@ class BaseRVM(BaseEstimator, ABC):
         self.weight_posterior_cov_ = None
         self.weight_posterior_mean_ = None
         self.design_matrix_ = None
-        self.sparsity = None
-        self.quality = None
+        self.sparsity_ = None
+        self.quality_ = None
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseRVM":
         # step 0
@@ -96,24 +96,26 @@ class BaseRVM(BaseEstimator, ABC):
             target_hat=target_hat,
             alpha_matrix_active=alpha_matrix_active,
             beta_matrix=beta_matrix)
-        self.__update_sparsity_quality(beta_matrix=beta_matrix,
-                                       target_hat=target_hat)
+        sparsity, quality = self.__update_sparsity_quality(
+            active_basis_mask=active_basis_mask,
+            phi_matrix=phi_matrix,
+            beta_matrix=beta_matrix,
+            target_hat=target_hat)
         for i in range(self.max_iter):
             # step 4
-            curr_basis_idx: int = i % phi_matrix.shape[1]
-            curr_basis_vector = phi_matrix[:, curr_basis_idx]
-            # step 5 - 8
-            curr_basis_sparsity, curr_basis_quality = self.__compute_single_basis_sparsity_quality(
-                basis_vector=curr_basis_vector,
-                beta_matrix=beta_matrix,
-                target_hat=target_hat)
-            active_basis_mask, alpha_matrix_active = self.__prune(
-                curr_basis_idx=curr_basis_idx,
-                curr_basis_sparsity=curr_basis_sparsity,
-                curr_basis_quality=curr_basis_quality,
+            # TODO change to the implementation outlined in appendix
+            curr_basis_idx: int = self._select_basis_vector(
+                curr_iter=i,
                 phi_matrix=phi_matrix,
                 alpha_matrix=alpha_matrix,
-            )
+                beta_matrix=beta_matrix)
+            # step 5 - 8
+            active_basis_mask, alpha_matrix_active = self.__prune(
+                curr_basis_idx=curr_basis_idx,
+                phi_matrix=phi_matrix,
+                alpha_matrix=alpha_matrix,
+                sparsity=sparsity,
+                quality=quality)
             # step 9
             beta_matrix = self._update_beta_matrix(
                 X=X,
@@ -126,8 +128,11 @@ class BaseRVM(BaseEstimator, ABC):
                 target_hat=target_hat,
                 alpha_matrix_active=alpha_matrix_active,
                 beta_matrix=beta_matrix)
-            self.__update_sparsity_quality(beta_matrix=beta_matrix,
-                                           target_hat=target_hat)
+            sparsity, quality = self.__update_sparsity_quality(
+                active_basis_mask=active_basis_mask,
+                phi_matrix=phi_matrix,
+                beta_matrix=beta_matrix,
+                target_hat=target_hat)
             # step 11
             has_converged: bool = self.__has_converged(
                 curr_alpha_matrix=alpha_matrix,
@@ -138,8 +143,6 @@ class BaseRVM(BaseEstimator, ABC):
 
     @abstractmethod
     def predict(self, X: np.ndarray) -> np.ndarray:
-        # from setp 2 to step 11
-        # regression override predict method and initialize target precision sigma_squared (precision of y)
         pass
 
     def get_params(self, deep: bool = False):
@@ -210,13 +213,28 @@ class BaseRVM(BaseEstimator, ABC):
         pass
 
     # protected
+    def _select_basis_vector(self, curr_iter: int, phi_matrix: np.ndarray,
+                             alpha_matrix: np.ndarray,
+                             beta_matrix: np.ndarray) -> int:
+        """Select the largest normalized projection onto the target vector.
+
+        Args:
+            curr_iter (int)
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
+            target (np.ndarray): (n_sampels, ) the target vector.
+
+        Returns:
+            idx (int): index of the selected vector
+        """
+        return curr_iter % phi_matrix.shape[1]
+
     def _update_beta_matrix(self, X: np.ndarray, target: np.ndarray,
                             alpha_matrix_active: np.ndarray,
                             beta_matrix: np.ndarray) -> np.ndarray:
         return beta_matrix
 
     @property
-    def _phi_active(self) -> np.ndarray:
+    def _phi_active_(self) -> np.ndarray:
         """self.__phi_active is self.design_matrix_
 
         Raises:
@@ -233,13 +251,31 @@ class BaseRVM(BaseEstimator, ABC):
         return phi_active
 
     @property
-    def _weight_posterior_cov(self) -> np.ndarray:
+    def _weight_posterior_cov_(self) -> np.ndarray:
         weight_posterior_cov: np.ndarray
         if self.weight_posterior_cov_ is not None:
             weight_posterior_cov = self.weight_posterior_cov_
         else:
             raise ValueError("self.weight_posterior_cov is None")
         return weight_posterior_cov
+
+    @property
+    def _sparsity_(self) -> np.ndarray:
+        sparsity: np.ndarray
+        if self.sparsity_ is not None:
+            sparsity = self.sparsity_
+        else:
+            raise ValueError("self.sparsity_ is None")
+        return sparsity
+
+    @property
+    def _quality_(self) -> np.ndarray:
+        quality: np.ndarray
+        if self.quality_ is not None:
+            quality = self.quality_
+        else:
+            raise ValueError("self.quality_ is None")
+        return quality
 
     # private
     def __compute_gamma(self, X: np.ndarray):
@@ -373,71 +409,64 @@ class BaseRVM(BaseEstimator, ABC):
         active_basis_mask: np.ndarray = (alpha_vector != np.inf)
         return active_basis_mask
 
-    def __update_sparsity_quality(self, beta_matrix: np.ndarray,
-                                  target_hat: np.ndarray):
-        """Compute sparsity_matrix and quality_matrix
+    def __update_sparsity_quality(
+            self, active_basis_mask: np.ndarray, phi_matrix: np.ndarray,
+            beta_matrix: np.ndarray,
+            target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute sparsity_matrix and quality_matrix.
+
+        The method first compute the sparsity and quality for all basis vector, and then using the active_basis_mask to set the self.sparsity_ and self.quality_. Both self.sparsity_ and self.quality_ should have shape of (n_active_basis_vectors, ).
 
         Args:
+            active_basis_mask (np.ndarray): (n_basis_vecor) or (M,) with all elements being boolean value
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
             beta_matrix (np.ndarray): (n_samples, n_samples) or (N, N) the beta matrix with beta_i on the diagonal.
             target_hat (np.ndarray): (n_samples) regression should be target and classification should be current pred.
-        """
-        phi: np.ndarray = self._phi_active
-        phi_tr_beta: np.ndarray = phi.T @ beta_matrix
-        phi_tr_beta_phi_sigma: np.ndarray = phi_tr_beta @ phi @ self.weight_posterior_cov_ @ phi_tr_beta
-        sparsity_matrix: np.ndarray = (phi_tr_beta @ phi) - (
-            phi_tr_beta_phi_sigma @ phi)
-        quality_matrix: np.ndarray = (phi_tr_beta @ target_hat) - (
-            phi_tr_beta_phi_sigma @ phi)
-        self.sparsity = np.diagonal(sparsity_matrix)
-        self.quality = np.diagonal(quality_matrix)
 
-    # def __select_basis_vector(self, phi_matrix: np.ndarray,
-    #                           target: np.ndarray) -> Tuple[int, np.ndarray]:
-    #     """Select the largest normalized projection onto the target vector.
-
-    #     Args:
-    #         phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
-    #         target (np.ndarray): (n_sampels, ) the target vector.
-
-    #     Returns:
-    #         idx (int): index of the selected vector
-    #         curr_basis_vector (np.ndarray): (n_samples, 1) the selected basis vector.
-    #     """
-    #     proj: np.ndarray = phi_matrix.T @ target
-    #     phi_norm: np.ndarray = np.linalg.norm(phi_matrix, axis=1)
-    #     proj_norm: np.ndarray = np.divide(proj, phi_norm)
-    #     idx: int = np.argmax(proj_norm)
-    #     curr_basis_vector: np.ndarray = phi_matrix[:, idx]
-    #     return idx, curr_basis_vector
-
-    def __compute_single_basis_sparsity_quality(self, basis_vector: np.ndarray,
-                                                beta_matrix: np.ndarray,
-                                                target_hat: np.ndarray):
-        """Compute sparsity_matrix and quality_matrix
-
-        Args:
-            basis_vector (np.ndarray): (n_samples, 1) The single selected basis vector to be evaluated.
-            beta_matrix (np.ndarray): (n_samples, n_samples) or (N, N) the beta matrix with beta_i on the diagonal.
-            target_hat (np.ndarray): (n_samples) regression should be target and classification should be current pred.
-            
         Returns:
-            sparsity (float): The sparsity metric of the passed in basis_vector.
-            quality (float): The quality metric of the passed in basis_vector.
+            sparsity (np.ndarray): (n_basis_vectors, ) The complete sparsity vector for all basis_vector.
+            quality (np.ndarray): (n_basis_vectors, ) The complete quality vector for all basis_vector.
         """
-        sigma: np.ndarray = self._weight_posterior_cov
-        phi: np.ndarray = self._phi_active
-        phi_m: np.ndarray = basis_vector
-        phi_m_tr: np.ndarray = phi_m.T
-        sigma_phi_tr: np.ndarray = sigma @ phi.T
-        phi_m_tr_beta: np.ndarray = phi_m_tr @ beta_matrix
-        phi_m_tr_beta_phi_sigma_phi_tr_beta: np.ndarray = phi_m_tr_beta @ phi @ sigma_phi_tr @ beta_matrix
-        sparsity: float = phi_m_tr_beta @ phi_m - phi_m_tr_beta_phi_sigma_phi_tr_beta @ phi_m
-        quality: float = phi_m_tr_beta @ target_hat - phi_m_tr_beta_phi_sigma_phi_tr_beta @ target_hat
+        phi_active: np.ndarray = self._phi_active_
+        phi_m_tr_beta: np.ndarray = phi_matrix.T @ beta_matrix
+        sigma_phi_tr: np.ndarray = self._weight_posterior_cov_ @ phi_active.T
+        phi_m_tr_beta_phi_sigma_phi_tr_beta: np.ndarray = phi_m_tr_beta @ phi_active @ sigma_phi_tr @ beta_matrix
+        sparsity_matrix = phi_m_tr_beta @ phi_matrix - phi_m_tr_beta_phi_sigma_phi_tr_beta @ phi_matrix
+        quality_matrix = phi_m_tr_beta @ target_hat - phi_m_tr_beta_phi_sigma_phi_tr_beta @ target_hat
+        sparsity = np.diagonal(sparsity_matrix)
+        quality = np.diagonal(quality_matrix)
+        self.sparsity_ = sparsity[active_basis_mask]
+        self.quality_ = quality[active_basis_mask]
         return sparsity, quality
 
-    def __prune(self, curr_basis_idx: int, curr_basis_sparsity: float,
-                curr_basis_quality: float, phi_matrix: np.ndarray,
-                alpha_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    # def __compute_single_basis_sparsity_quality(self, basis_vector: np.ndarray,
+    #                                             beta_matrix: np.ndarray,
+    #                                             target_hat: np.ndarray):
+    #     """Compute sparsity_matrix and quality_matrix
+
+    #     Args:
+    #         basis_vector (np.ndarray): (n_samples, 1) The single selected basis vector to be evaluated.
+    #         beta_matrix (np.ndarray): (n_samples, n_samples) or (N, N) the beta matrix with beta_i on the diagonal.
+    #         target_hat (np.ndarray): (n_samples) regression should be target and classification should be current pred.
+
+    #     Returns:
+    #         sparsity (float): The sparsity metric of the passed in basis_vector.
+    #         quality (float): The quality metric of the passed in basis_vector.
+    #     """
+    #     sigma: np.ndarray = self._weight_posterior_cov_
+    #     phi: np.ndarray = self._phi_active_
+    #     phi_m: np.ndarray = basis_vector
+    #     phi_m_tr: np.ndarray = phi_m.T
+    #     sigma_phi_tr: np.ndarray = sigma @ phi.T
+    #     phi_m_tr_beta: np.ndarray = phi_m_tr @ beta_matrix
+    #     phi_m_tr_beta_phi_sigma_phi_tr_beta: np.ndarray = phi_m_tr_beta @ phi @ sigma_phi_tr @ beta_matrix
+    #     sparsity: float = phi_m_tr_beta @ phi_m - phi_m_tr_beta_phi_sigma_phi_tr_beta @ phi_m
+    #     quality: float = phi_m_tr_beta @ target_hat - phi_m_tr_beta_phi_sigma_phi_tr_beta @ target_hat
+    #     return sparsity, quality
+
+    def __prune(self, curr_basis_idx: int, phi_matrix: np.ndarray,
+                alpha_matrix: np.ndarray, sparsity: np.ndarray,
+                quality: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Prune design matrix and update alpha matrix according to sparsity and quality analysis.
 
         The method updates the self.__design_matrix, modifies alpha_matrix in place, and then returns the new active_basis_mask.
@@ -453,6 +482,8 @@ class BaseRVM(BaseEstimator, ABC):
             active_basis_mask (np.ndarray): (n_basis_vectors, ) The updated active basis mask.
             alpha_matrix_active (np.ndarray): (n_active_basis_vectors, ) The updated active alpha matrix.
         """
+        curr_basis_sparsity: float = sparsity[curr_basis_idx]
+        curr_basis_quality: float = quality[curr_basis_idx]
         curr_theta: float = curr_basis_sparsity**2 - curr_basis_quality
         if curr_theta > 0:
             curr_alpha: float = curr_basis_sparsity**2 / (

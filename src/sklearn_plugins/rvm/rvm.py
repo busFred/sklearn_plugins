@@ -390,7 +390,7 @@ class BaseRVM(BaseEstimator, ABC):
             curr_basis_vector (np.ndarray): (n_samples, 1) the selected basis vector.
         """
         proj: np.ndarray = phi_matrix.T @ target
-        phi_norm: np.ndarray = np.linalg.norm(phi_matrix, axis=1)
+        phi_norm: np.ndarray = np.linalg.norm(phi_matrix, axis=0)
         proj_norm: np.ndarray = np.divide(proj, phi_norm)
         idx: int = np.argmax(proj_norm)
         curr_basis_vector: np.ndarray = phi_matrix[:, idx]
@@ -416,6 +416,8 @@ class BaseRVM(BaseEstimator, ABC):
         alpha_vector: np.ndarray = np.full(shape=(phi_matrix.shape[1]),
                                            fill_value=np.inf)
         basis_norm: float = np.linalg.norm(curr_basis_vector, axis=0)
+        # TODO have index out of bound exception
+        # modify beta as instance variable
         beta: float = beta_matrix[curr_basis_idx, curr_basis_idx]
         alpha_i: float = basis_norm**2 / ((
             (curr_basis_vector.T @ target)**2 / basis_norm**2) - (1 / beta))

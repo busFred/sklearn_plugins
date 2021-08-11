@@ -43,7 +43,9 @@ class RVR(BaseRVM):
 
     @overrides
     def predict(self, X: np.ndarray) -> np.ndarray:
-        pass
+        y: np.ndarray = self._apply_kernel_func(
+            X=X, Y=self._phi_active_) @ self._weight_posterior_mean_
+        return y
 
     @overrides
     def _init_beta_matrix(self, phi_matrix: np.ndarray,

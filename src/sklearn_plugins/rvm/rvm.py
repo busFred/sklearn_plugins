@@ -101,11 +101,11 @@ class BaseRVM(BaseEstimator, ABC):
             phi_matrix=phi_matrix,
             beta_matrix=beta_matrix,
             target_hat=target_hat)
-        for i in range(self.max_iter):
+        for curr_iter in range(self.max_iter):
             # step 4
             # TODO change to the implementation outlined in appendix
             curr_basis_idx: int = self._select_basis_vector(
-                curr_iter=i,
+                curr_iter=curr_iter,
                 phi_matrix=phi_matrix,
                 alpha_matrix=alpha_matrix,
                 beta_matrix=beta_matrix)

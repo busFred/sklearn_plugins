@@ -81,14 +81,8 @@ class BaseRVM(BaseEstimator, ABC):
         beta_matrix: np.ndarray = self._init_beta_matrix(phi_matrix=phi_matrix,
                                                          target=y)
         # step 2
-        curr_basis_idx, curr_basis_vector = self.__select_basis_vector(
-            phi_matrix=phi_matrix, target=y)
         alpha_matrix: np.ndarray = self.__init_alpha_matrix(
-            curr_basis_idx=curr_basis_idx,
-            curr_basis_vector=curr_basis_vector,
-            phi_matrix=phi_matrix,
-            target=y,
-            beta_matrix=beta_matrix)
+            phi_matrix=phi_matrix, target=y, beta_matrix=beta_matrix)
         # step 2.5: instantiate active alpha, and active phi (design matrix)
         active_basis_mask: np.ndarray = self.__get_active_basis_mask(
             alpha_matrix=alpha_matrix)
@@ -97,17 +91,17 @@ class BaseRVM(BaseEstimator, ABC):
         self.design_matrix_ = phi_matrix[:, active_basis_mask]
         # step 3: initialize posterior_weight_mean and posterior_weight_cov
         prev_alpha_matrix: np.ndarray = np.copy(a=alpha_matrix)
-        target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
+        target_hat: np.ndarray = self._compute_target_hat(X=X, target=y)
         self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
             target_hat=target_hat,
             alpha_matrix_active=alpha_matrix_active,
             beta_matrix=beta_matrix)
         self.__update_sparsity_quality(beta_matrix=beta_matrix,
                                        target_hat=target_hat)
-        for _ in range(self.max_iter):
+        for i in range(self.max_iter):
             # step 4
-            curr_basis_idx, curr_basis_vector = self.__select_basis_vector(
-                phi_matrix=phi_matrix, target=y)
+            curr_basis_idx: int = i % phi_matrix.shape[1]
+            curr_basis_vector = phi_matrix[:, curr_basis_idx]
             # step 5 - 8
             curr_basis_sparsity, curr_basis_quality = self.__compute_single_basis_sparsity_quality(
                 basis_vector=curr_basis_vector,
@@ -123,11 +117,11 @@ class BaseRVM(BaseEstimator, ABC):
             # step 9
             beta_matrix = self._update_beta_matrix(
                 X=X,
-                y=y,
+                target=y,
                 alpha_matrix_active=alpha_matrix_active,
                 beta_matrix=beta_matrix)
             # step 10
-            target_hat = self._compute_target_hat(X=X, y=y)
+            target_hat = self._compute_target_hat(X=X, target=y)
             self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
                 target_hat=target_hat,
                 alpha_matrix_active=alpha_matrix_active,
@@ -136,7 +130,8 @@ class BaseRVM(BaseEstimator, ABC):
                                            target_hat=target_hat)
             # step 11
             has_converged: bool = self.__has_converged(
-                alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha_matrix)
+                curr_alpha_matrix=alpha_matrix,
+                prev_alpha_matrix=prev_alpha_matrix)
             if has_converged == True:
                 break
         return self
@@ -201,7 +196,8 @@ class BaseRVM(BaseEstimator, ABC):
         pass
 
     @abstractmethod
-    def _compute_target_hat(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    def _compute_target_hat(self, X: np.ndarray,
+                            target: np.ndarray) -> np.ndarray:
         """Compute target hat
 
         Args:
@@ -214,7 +210,7 @@ class BaseRVM(BaseEstimator, ABC):
         pass
 
     # protected
-    def _update_beta_matrix(self, X: np.ndarray, y: np.ndarray,
+    def _update_beta_matrix(self, X: np.ndarray, target: np.ndarray,
                             alpha_matrix_active: np.ndarray,
                             beta_matrix: np.ndarray) -> np.ndarray:
         return beta_matrix
@@ -317,8 +313,9 @@ class BaseRVM(BaseEstimator, ABC):
                                    axis=1)
         return phi_matrix
 
-    def __select_basis_vector(self, phi_matrix: np.ndarray,
-                              target: np.ndarray) -> Tuple[int, np.ndarray]:
+    def __init_select_basis_vector(
+            self, phi_matrix: np.ndarray,
+            target: np.ndarray) -> Tuple[int, np.ndarray]:
         """Select the largest normalized projection onto the target vector.
 
         Args:
@@ -336,9 +333,7 @@ class BaseRVM(BaseEstimator, ABC):
         curr_basis_vector: np.ndarray = phi_matrix[:, idx]
         return idx, curr_basis_vector
 
-    def __init_alpha_matrix(self, curr_basis_idx: int,
-                            curr_basis_vector: np.ndarray,
-                            phi_matrix: np.ndarray, target: np.ndarray,
+    def __init_alpha_matrix(self, phi_matrix: np.ndarray, target: np.ndarray,
                             beta_matrix: np.ndarray) -> np.ndarray:
         """Initialize alpha matrix
 
@@ -352,6 +347,8 @@ class BaseRVM(BaseEstimator, ABC):
         Returns:
             alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) or (M, M) in Tipping 2003. The complete alpha matrix.
         """
+        curr_basis_idx, curr_basis_vector = self.__init_select_basis_vector(
+            phi_matrix=phi_matrix, target=target)
         # beta_i = 1 / sigma_i**2
         alpha_vector: np.ndarray = np.full(shape=(phi_matrix.shape[1]),
                                            fill_value=np.inf)
@@ -393,6 +390,25 @@ class BaseRVM(BaseEstimator, ABC):
             phi_tr_beta_phi_sigma @ phi)
         self.sparsity = np.diagonal(sparsity_matrix)
         self.quality = np.diagonal(quality_matrix)
+
+    # def __select_basis_vector(self, phi_matrix: np.ndarray,
+    #                           target: np.ndarray) -> Tuple[int, np.ndarray]:
+    #     """Select the largest normalized projection onto the target vector.
+
+    #     Args:
+    #         phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
+    #         target (np.ndarray): (n_sampels, ) the target vector.
+
+    #     Returns:
+    #         idx (int): index of the selected vector
+    #         curr_basis_vector (np.ndarray): (n_samples, 1) the selected basis vector.
+    #     """
+    #     proj: np.ndarray = phi_matrix.T @ target
+    #     phi_norm: np.ndarray = np.linalg.norm(phi_matrix, axis=1)
+    #     proj_norm: np.ndarray = np.divide(proj, phi_norm)
+    #     idx: int = np.argmax(proj_norm)
+    #     curr_basis_vector: np.ndarray = phi_matrix[:, idx]
+    #     return idx, curr_basis_vector
 
     def __compute_single_basis_sparsity_quality(self, basis_vector: np.ndarray,
                                                 beta_matrix: np.ndarray,
@@ -451,7 +467,7 @@ class BaseRVM(BaseEstimator, ABC):
         self.design_matrix_ = phi_matrix[:, active_basis_mask]
         return active_basis_mask, alpha_matrix_active
 
-    def __has_converged(self, alpha_matrix: np.ndarray,
+    def __has_converged(self, curr_alpha_matrix: np.ndarray,
                         prev_alpha_matrix: np.ndarray) -> bool:
         """Determine whether the algorithm has converged.
 
@@ -462,6 +478,7 @@ class BaseRVM(BaseEstimator, ABC):
         Returns:
             bool: True if has converged, False otherwise.
         """
-        alpha_abs_diff: np.ndarray = np.abs(alpha_matrix - prev_alpha_matrix)
+        alpha_abs_diff: np.ndarray = np.abs(curr_alpha_matrix -
+                                            prev_alpha_matrix)
         diff: float = np.nansum(alpha_abs_diff)
         return True if diff <= self.tol else False

@@ -75,7 +75,7 @@ class BaseRVM(BaseEstimator, ABC):
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseRVM":
         # step 0
-        phi_matrix: np.ndarray = self.__apply_kernel_func(
+        phi_matrix: np.ndarray = self._apply_kernel_func(
             X=X, Y=X)  # the design matrix
         # step 1
         beta_matrix: np.ndarray = self._init_beta_matrix(phi_matrix=phi_matrix,
@@ -92,10 +92,8 @@ class BaseRVM(BaseEstimator, ABC):
         # step 3: initialize posterior_weight_mean and posterior_weight_cov
         prev_alpha_matrix: np.ndarray = np.copy(a=alpha_matrix)
         target_hat: np.ndarray = self._compute_target_hat(X=X, target=y)
-        self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
-            target_hat=target_hat,
-            alpha_matrix_active=alpha_matrix_active,
-            beta_matrix=beta_matrix)
+        self.weight_posterior_mean_, self.weight_posterior_cov_ = self._init_weight_posterior(
+            n_active_basis_vectors=alpha_matrix_active.shape[0])
         sparsity, quality = self.__update_sparsity_quality(
             active_basis_mask=active_basis_mask,
             phi_matrix=phi_matrix,
@@ -213,6 +211,68 @@ class BaseRVM(BaseEstimator, ABC):
         pass
 
     # protected
+    def _apply_kernel_func(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+        """Apply kernel function.
+
+        Args:
+            X (np.ndarray): (n_samples_X, n_features)
+            Y (np.ndarray): (n_samples_Y, n_features) or (N, M) in origianl literature where M is number of basis vectors.
+
+        Raises:
+            ValueError: "Custom kernel function did not return 2D matrix"
+            ValueError: "Custom kernel function did not return matrix with rows equal to number of data points."
+            ValueError: "Kernel selection is invalid."
+
+        Returns:
+            phi_matrix (np.ndarray): (n_samples_X, n_samples_Y) or (n_samples_X, M)
+        """
+        phi_matrix: np.ndarray
+        if self.kernel == "linear":
+            phi_matrix = linear_kernel(X, Y)
+        elif self.kernel == "rbf":
+            self.__compute_gamma(X=X)
+            phi_matrix = rbf_kernel(X, Y, self.gamma_)
+        elif self.kernel == "poly":
+            self.__compute_gamma(X=X)
+            phi_matrix = polynomial_kernel(X, Y, self.degree, self.gamma_,
+                                           self.coef0)
+        elif callable(self.kernel):
+            phi_matrix = self.kernel(X, Y)
+            if len(phi_matrix.shape) != 2:
+                raise ValueError(
+                    "Custom kernel function did not return 2D matrix")
+            if phi_matrix.shape[0] != X.shape[0]:
+                raise ValueError(
+                    "Custom kernel function did not return matrix with rows equal to number of data points."
+                )
+        else:
+            raise ValueError("Kernel selection is invalid.")
+        if self.include_bias:
+            phi_matrix = np.append(phi_matrix,
+                                   np.ones((phi_matrix.shape[0], 1)),
+                                   axis=1)
+        return phi_matrix
+
+    def _init_weight_posterior(
+            self,
+            n_active_basis_vectors: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute the "most probable" weight posterior statistics
+
+        Args:
+            target_hat (np.ndarray): (n_samples, ) The target hat vector.
+            alpha_matrix_active (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors) The current active alpha matrix.
+            beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
+
+        Returns:
+            weight_posterior_mean (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
+            weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
+        """
+        weight_posterior_mean: np.ndarray = np.zeros(
+            shape=n_active_basis_vectors)
+        weight_posterior_cov: np.ndarray = np.zeros(
+            shape=(n_active_basis_vectors, n_active_basis_vectors))
+        return weight_posterior_mean, weight_posterior_cov
+
     def _select_basis_vector(self, curr_iter: int, phi_matrix: np.ndarray,
                              alpha_matrix: np.ndarray,
                              beta_matrix: np.ndarray) -> int:
@@ -249,6 +309,15 @@ class BaseRVM(BaseEstimator, ABC):
         else:
             raise ValueError("self.design_matrix_ is None")
         return phi_active
+
+    @property
+    def _weight_posterior_mean_(self) -> np.ndarray:
+        weight_posterior_mean: np.ndarray
+        if self.weight_posterior_mean_ is not None:
+            weight_posterior_mean = self.weight_posterior_mean_
+        else:
+            raise ValueError("self.weight_posterior_mean is None")
+        return weight_posterior_mean
 
     @property
     def _weight_posterior_cov_(self) -> np.ndarray:
@@ -306,48 +375,6 @@ class BaseRVM(BaseEstimator, ABC):
                 str.format(
                     "Argument 'gamma' should be of type str or float, but 'gamma' is of type {} and has value {}",
                     type(self.gamma), self.gamma))
-
-    def __apply_kernel_func(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
-        """Apply kernel function.
-
-        Args:
-            X (np.ndarray): (n_samples_X, n_features)
-            Y (np.ndarray): (n_samples_Y, n_features) or (N, M) in origianl literature where M is number of basis vectors.
-
-        Raises:
-            ValueError: "Custom kernel function did not return 2D matrix"
-            ValueError: "Custom kernel function did not return matrix with rows equal to number of data points."
-            ValueError: "Kernel selection is invalid."
-
-        Returns:
-            phi_matrix (np.ndarray): (n_samples_X, n_samples_Y) or (n_samples_X, M)
-        """
-        phi_matrix: np.ndarray
-        if self.kernel == "linear":
-            phi_matrix = linear_kernel(X, Y)
-        elif self.kernel == "rbf":
-            self.__compute_gamma(X=X)
-            phi_matrix = rbf_kernel(X, Y, self.gamma_)
-        elif self.kernel == "poly":
-            self.__compute_gamma(X=X)
-            phi_matrix = polynomial_kernel(X, Y, self.degree, self.gamma_,
-                                           self.coef0)
-        elif callable(self.kernel):
-            phi_matrix = self.kernel(X, Y)
-            if len(phi_matrix.shape) != 2:
-                raise ValueError(
-                    "Custom kernel function did not return 2D matrix")
-            if phi_matrix.shape[0] != X.shape[0]:
-                raise ValueError(
-                    "Custom kernel function did not return matrix with rows equal to number of data points."
-                )
-        else:
-            raise ValueError("Kernel selection is invalid.")
-        if self.include_bias:
-            phi_matrix = np.append(phi_matrix,
-                                   np.ones((phi_matrix.shape[0], 1)),
-                                   axis=1)
-        return phi_matrix
 
     def __init_select_basis_vector(
             self, phi_matrix: np.ndarray,

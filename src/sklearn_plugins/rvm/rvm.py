@@ -68,31 +68,42 @@ class BaseRVM(BaseEstimator, ABC):
         self.weight_posterior_mean_ = None
         self.design_matrix_ = None
 
-    @abstractmethod
     def fit(self,
             X: np.ndarray,
             y: np.ndarray,
             sample_weight: Optional[np.ndarray] = None) -> "BaseRVM":
-        phi: np.ndarray = self._apply_kernel_func(X=X,
-                                                  Y=X)  # the design matrix
-        beta_matrix: np.ndarray = self._compute_beta_matrix(phi=phi, target=y)
+        phi_matrix: np.ndarray = self._apply_kernel_func(
+            X=X, Y=X)  # the design matrix
+        beta_matrix: np.ndarray = self._compute_beta_matrix(
+            phi_matrix=phi_matrix, target=y)
+        curr_basis_idx, curr_basis_vector = self._select_basis_vector(
+            phi_matrix=phi_matrix, target=y)
         alpha_matrix: np.ndarray = self._init_alpha_matrix(
-            phi=phi, target=y, beta_matrix=beta_matrix)
+            curr_basis_idx=curr_basis_idx,
+            curr_basis_vector=curr_basis_vector,
+            phi_matrix=phi_matrix,
+            target=y,
+            beta_matrix=beta_matrix)
         prev_alpha_matrix: np.ndarray = np.copy(a=alpha_matrix)
         for _ in range(self.max_iter):
             active_basis_mask: np.ndarray = self._get_active_basis_mask(
                 alpha_matrix=alpha_matrix)
             alpha_matrix_active: np.ndarray = alpha_matrix[:, active_basis_mask][
                 active_basis_mask, :]
-            self.design_matrix_ = phi[:, active_basis_mask]
+            self.design_matrix_ = phi_matrix[:, active_basis_mask]
             target_hat: np.ndarray = self._compute_target_hat(X=X)
             self.weight_posterior_mean_, self.weight_posterior_cov_ = self._compute_weight_posterior(
                 target_hat=target_hat,
-                alpha_matrix=alpha_matrix_active,
+                alpha_matrix_active=alpha_matrix_active,
                 beta_matrix=beta_matrix)
-            sparsity_matrix, quality_matrix = self._compute_sparsity_quality(
+            sparsity, quality = self._compute_sparsity_quality(
                 beta_matrix=beta_matrix, target_hat=target_hat)
-
+            active_basis_mask, alpha_matrix_active = self._prune(
+                curr_basis_idx=curr_basis_idx,
+                phi_matrix=phi_matrix,
+                alpha_matrix=alpha_matrix,
+                sparsity=sparsity,
+                quality=quality)
         return self
 
     @abstractmethod
@@ -190,35 +201,37 @@ class BaseRVM(BaseEstimator, ABC):
             phi = np.append(phi, np.ones((phi.shape[0], 1)), axis=1)
         return phi
 
-    def _select_basis_vector(self, phi: np.ndarray,
+    def _select_basis_vector(self, phi_matrix: np.ndarray,
                              target: np.ndarray) -> Tuple[int, np.ndarray]:
         """Select the largest normalized projection onto the target vector.
 
         Args:
-            phi (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003.
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
             target (np.ndarray): (n_sampels, ) the target vector.
 
         Returns:
             idx (int): index of the selected vector
             phi[:, idx] (np.ndarray): (n_samples, 1) the selected basis vector
         """
-        proj: np.ndarray = phi.T @ target
-        phi_norm: np.ndarray = np.linalg.norm(phi, axis=1)
+        proj: np.ndarray = phi_matrix.T @ target
+        phi_norm: np.ndarray = np.linalg.norm(phi_matrix, axis=1)
         proj_norm: np.ndarray = np.divide(proj, phi_norm)
         idx: int = np.argmax(proj_norm)
-        return idx, phi[:, idx]
+        return idx, phi_matrix[:, idx]
 
     @abstractmethod
-    def _compute_beta_matrix(self, phi: np.ndarray,
+    def _compute_beta_matrix(self, phi_matrix: np.ndarray,
                              target: np.ndarray) -> np.ndarray:
         pass
 
-    def _init_alpha_matrix(self, phi: np.ndarray, target: np.ndarray,
+    def _init_alpha_matrix(self, curr_basis_idx: int,
+                           curr_basis_vector: np.ndarray,
+                           phi_matrix: np.ndarray, target: np.ndarray,
                            beta_matrix: np.ndarray) -> np.ndarray:
         """Initialize alpha matrix
 
         Args:
-            phi (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003.
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
             target (np.ndarray): (n_samples) the target vector.
             beta_matrix (np.ndarray): (n_samples, n_samples) or (N, N) the beta matrix with beta_i on the diagonal.
 
@@ -226,20 +239,19 @@ class BaseRVM(BaseEstimator, ABC):
             alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) or (M, M) in Tipping 2003. the alpha matrix
         """
         # beta_i = 1 / sigma_i**2
-        idx, basis_vector = self._select_basis_vector(phi=phi, target=target)
-        alpha_vector: np.ndarray = np.full(shape=(phi.shape[1]),
+        alpha_vector: np.ndarray = np.full(shape=(phi_matrix.shape[1]),
                                            fill_value=np.inf)
-        basis_norm: float = np.linalg.norm(basis_vector, axis=0)
-        beta: float = beta_matrix[idx, idx]
+        basis_norm: float = np.linalg.norm(curr_basis_vector, axis=0)
+        beta: float = beta_matrix[curr_basis_idx, curr_basis_idx]
         alpha_i: float = basis_norm**2 / ((
-            (basis_vector.T @ target)**2 / basis_norm**2) - (1 / beta))
-        alpha_vector[idx] = alpha_i
+            (curr_basis_vector.T @ target)**2 / basis_norm**2) - (1 / beta))
+        alpha_vector[curr_basis_idx] = alpha_i
         alpha_matrix: np.ndarray = np.diag(v=alpha_vector)
         return alpha_matrix
 
     @abstractmethod
     def _compute_weight_posterior(
-            self, target_hat: np.ndarray, alpha_matrix: np.ndarray,
+            self, target_hat: np.ndarray, alpha_matrix_active: np.ndarray,
             beta_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         pass
 
@@ -280,7 +292,43 @@ class BaseRVM(BaseEstimator, ABC):
             phi_tr_beta_phi_sigma @ phi)
         quality_matrix: np.ndarray = (phi_tr_beta @ target_hat) - (
             phi_tr_beta_phi_sigma @ phi)
-        return sparsity_matrix, quality_matrix
+        sparsity: np.ndarray = np.diagonal(sparsity_matrix)
+        quality: np.ndarray = np.diagonal(quality_matrix)
+        return sparsity, quality
+
+    def _prune(self, curr_basis_idx: int, phi_matrix: np.ndarray,
+               alpha_matrix: np.ndarray, sparsity: np.ndarray,
+               quality: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Prune design matrix and update alpha matrix according to sparsity and quality analysis.
+
+        The method updates the self.__design_matrix, modifies alpha_matrix in place, and then returns the new active_basis_mask.
+
+        Args:
+            curr_basis_idx (int): The index of the currently selected basis vector.
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) The complete phi matrix.
+            alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) The complete alpha_matrix.
+            sparsity (np.ndarray): (n_basis_vectors, ) The sparsity of all basis vectors.
+            quality (np.ndarray): (n_basis_vectors, ) The quality  of all basis vectors
+
+        Returns:
+            active_basis_mask (np.ndarray): (n_basis_vectors, ) The updated active basis mask.
+            alpha_matrix_active (np.ndarray): (n_active_basis_vectors, ) The updated active alpha matrix.
+        """
+        curr_sparsity: float = sparsity[curr_basis_idx]
+        curr_quality: float = quality[curr_basis_idx]
+        curr_theta: float = curr_sparsity**2 - curr_quality
+        if curr_theta > 0:
+            curr_alpha: float = curr_sparsity**2 / (curr_quality**2 -
+                                                    curr_sparsity)
+            alpha_matrix[curr_basis_idx, curr_basis_idx] = curr_alpha
+        else:
+            alpha_matrix[curr_basis_idx, curr_basis_idx] = np.inf
+        active_basis_mask: np.ndarray = self._get_active_basis_mask(
+            alpha_matrix=alpha_matrix)
+        alpha_matrix_active: np.ndarray = alpha_matrix[:, active_basis_mask][
+            active_basis_mask, :]
+        self.design_matrix_ = phi_matrix[:, active_basis_mask]
+        return active_basis_mask, alpha_matrix_active
 
     # private
     @property

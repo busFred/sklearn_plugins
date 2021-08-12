@@ -265,7 +265,7 @@ class BaseRVM(BaseEstimator, ABC):
             active_basis_mask (np.ndarray): (n_basis_vectors, ) The updated active basis mask.
         """
         theta: np.ndarray = quality**2 - sparsity
-        active_basis_mask: np.ndarray = theta > 0
+        active_basis_mask: np.ndarray = (theta > 0)
         n_basis_vectors: int = quality.shape[0]
         alpha: np.ndarray = np.full(shape=(n_basis_vectors), fill_value=np.inf)
         new_alpha: np.ndarray = sparsity**2 / theta

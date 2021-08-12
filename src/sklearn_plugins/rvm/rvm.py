@@ -15,6 +15,8 @@ class BaseRVM(BaseEstimator, ABC):
     _max_iter: Union[int, None]
 
     _relevance_vectors_: Union[np.ndarray, None]
+    _weight_posterior_mean_: Union[np.ndarray, None]
+    _weight_posterior_cov_: Union[np.ndarray, None]
 
     def __init__(self,
                  kernel_func: Callable[[np.ndarray, np.ndarray],
@@ -29,11 +31,15 @@ class BaseRVM(BaseEstimator, ABC):
         self._tol = tol
         self._max_iter = max_iter
 
+        self._relevance_vectors_ = None
+        self._weight_posterior_mean_ = None
+        self._weight_posterior_cov_ = None
+
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseRVM":
         # step 0
         phi_matrix: np.ndarray = self._compute_phi_matrix(X, X)
         # step 1
-        beta_matrix, init_beta: np.ndarray = self._init_beta_matrix(target=y)
+        beta_matrix, init_beta = self._init_beta_matrix(target=y)
         # step 2
         alpha_matrix: np.ndarray = self._init_alpha_matrix(
             init_beta=init_beta, phi_matrix=phi_matrix, target=y)
@@ -183,6 +189,20 @@ class BaseRVM(BaseEstimator, ABC):
     @property
     def relevance_vectors_(self) -> np.ndarray:
         if self._relevance_vectors_ is not None:
-            return self._relevance_vectors_
+            return self._relevance_vectors_.copy()
         else:
             raise ValueError("self._relevance_vectors_ is None")
+
+    @property
+    def weight_posterior_mean_(self) -> np.ndarray:
+        if self._weight_posterior_mean_ is not None:
+            return self._weight_posterior_mean_.copy()
+        else:
+            raise ValueError("self._weight_posterior_mean_ is None")
+
+    @property
+    def weight_posterior_cov_(self):
+        if self._weight_posterior_cov_ is not None:
+            return self._weight_posterior_cov_.copy()
+        else:
+            raise ValueError("self._weight_posterior_cov_ is None")

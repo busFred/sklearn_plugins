@@ -47,15 +47,21 @@ class BaseRVM(BaseEstimator, ABC):
             alpha_matrix=alpha_matrix)
         active_alpha_matrix: np.ndarray = self._get_active_alpha_matrix(
             alpha_matrix=alpha_matrix, active_basis_mask=active_basis_mask)
-        active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
-            phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
         # step 3
         target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
         self._mu, self._sigma_matrix = self._compute_weight_posterior(
-            target_hat=target_hat,
             active_alpha_matrix=active_alpha_matrix,
-            beta_matrix=beta_matrix)
+            beta_matrix=beta_matrix,
+            target_hat=target_hat)
+
         
+        sparsity, quality = self._compute_sparsity_quality(
+            active_basis_mask=active_basis_mask,
+            phi_matrix=phi_matrix,
+            beta_matrix=beta_matrix,
+            target_hat=target_hat)
+        # step 4
+
         return self
 
     @abstractmethod
@@ -191,7 +197,7 @@ class BaseRVM(BaseEstimator, ABC):
     def _compute_weight_posterior(
             self, active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
             target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Compute the "most probable" weight posterior statistics
+        """Compute the "most probable" or "MP" weight posterior statistics
 
         Args:
             target_hat (np.ndarray): (n_samples, ) The target hat vector.
@@ -204,6 +210,33 @@ class BaseRVM(BaseEstimator, ABC):
         """
         # force subclass to return so that the corresponding instance variables will definitely get updated.
         pass
+
+    def _compute_sparsity_quality(
+            self, active_basis_mask: np.ndarray, phi_matrix: np.ndarray,
+            beta_matrix: np.ndarray,
+            target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute sparsity_matrix and quality_matrix.
+
+        Args:
+            active_basis_mask (np.ndarray): (n_basis_vecor) or (M,) with all elements being boolean value
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
+            beta_matrix (np.ndarray): (n_samples, n_samples) or (N, N) the beta matrix with beta_i on the diagonal.
+            target_hat (np.ndarray): (n_samples) regression should be target and classification should be current pred.
+
+        Returns:
+            sparsity (np.ndarray): (n_basis_vectors, ) The complete sparsity vector for all basis_vector.
+            quality (np.ndarray): (n_basis_vectors, ) The complete quality vector for all basis_vector.
+        """
+        active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
+            phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
+        phi_m = phi_matrix
+        phi_m_tr_beta: np.ndarray = phi_m.T @ beta_matrix
+        sigma_phi_tr: np.ndarray = self._sigma_matrix @ active_phi_matrix.T
+        phi_m_tr_beta_phi_sigma_phi_tr_beta: np.ndarray = phi_m_tr_beta @ active_phi_matrix @ sigma_phi_tr @ beta_matrix
+        sparsity_matrix: np.ndarray = phi_m_tr_beta @ phi_m - phi_m_tr_beta_phi_sigma_phi_tr_beta @ phi_m
+        sparsity: np.ndarray = np.diagonal(sparsity_matrix)
+        quality: np.ndarray = phi_m_tr_beta @ target_hat - phi_m_tr_beta_phi_sigma_phi_tr_beta @ target_hat
+        return sparsity, quality
 
     # public properties
     @property

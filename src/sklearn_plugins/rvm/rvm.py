@@ -47,6 +47,7 @@ class BaseRVM(BaseEstimator, ABC):
             alpha_matrix=alpha_matrix)
         active_alpha_matrix: np.ndarray = self._get_active_alpha_matrix(
             alpha_matrix=alpha_matrix, active_basis_mask=active_basis_mask)
+        prev_alpha: np.ndarray = alpha_matrix.copy()
         curr_iter: int = 0
         while True if self._max_iter is None else curr_iter < self._max_iter:
             # step 3
@@ -60,9 +61,20 @@ class BaseRVM(BaseEstimator, ABC):
                 phi_matrix=phi_matrix,
                 beta_matrix=beta_matrix,
                 target_hat=target_hat)
-            # step 4
-            pass
-
+            # step 4 - 8
+            alpha_matrix, active_basis_mask, active_alpha_matrix = self._prune(
+                sparsity=sparsity, quality=quality)
+            active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
+                phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
+            beta_matrix = self._update_beta_matrix(
+                active_alpha_matrix=active_alpha_matrix,
+                active_phi_matrix=active_phi_matrix,
+                target=y)
+            has_converged: bool = self._has_converged(
+                curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
+            if has_converged:
+                break
+        
         return self
 
     @abstractmethod
@@ -238,6 +250,45 @@ class BaseRVM(BaseEstimator, ABC):
         sparsity: np.ndarray = np.diagonal(sparsity_matrix)
         quality: np.ndarray = phi_m_tr_beta @ target_hat - phi_m_tr_beta_phi_sigma_phi_tr_beta @ target_hat
         return sparsity, quality
+
+    def _prune(
+            self, sparsity: np.ndarray,
+            quality: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Prune design matrix and update alpha matrix according to sparsity and quality analysis.
+
+        Args:
+            sparsity (np.ndarray): (n_basis_vectors, ) The sparsity of all basis vectors.
+            quality (np.ndarray): (n_basis_vectors, ) The quality  of all basis vectors
+
+        Returns:
+            alpha_matrix (np.ndarray): (n_basis_vectors, ) The updated active alpha matrix.
+            active_basis_mask (np.ndarray): (n_basis_vectors, ) The updated active basis mask.
+        """
+        theta: np.ndarray = quality**2 - sparsity
+        active_basis_mask: np.ndarray = theta > 0
+        n_basis_vectors: int = quality.shape[0]
+        alpha: np.ndarray = np.full(shape=(n_basis_vectors), fill_value=np.inf)
+        new_alpha: np.ndarray = sparsity**2 / theta
+        alpha[active_basis_mask] = new_alpha[active_basis_mask]
+        alpha_matrix: np.ndarray = np.diag(alpha)
+        active_alpha_matrix: np.ndarray = np.diag(new_alpha[active_basis_mask])
+        return alpha_matrix, active_basis_mask, active_alpha_matrix
+
+    def _has_converged(self, curr_alpha_matrix: np.ndarray,
+                       prev_alpha_matrix: np.ndarray) -> bool:
+        """Determine whether the algorithm has converged.
+
+        Args:
+            alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) The current complete alpha matrix.
+            prev_alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) The previous alpha matrix.
+
+        Returns:
+            bool: True if has converged, False otherwise.
+        """
+        alpha_abs_diff: np.ndarray = np.abs(curr_alpha_matrix -
+                                            prev_alpha_matrix)
+        diff: float = np.nansum(alpha_abs_diff)
+        return True if diff <= self.tol else False
 
     # public properties
     @property

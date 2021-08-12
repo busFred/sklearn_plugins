@@ -102,7 +102,8 @@ class RVR(BaseRVM):
 
     @overrides
     def _compute_weight_posterior(
-            self, active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
+            self, active_phi_matrix: np.ndarray,
+            active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
             target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the "most probable" or "MP" weight posterior statistics
 
@@ -112,11 +113,15 @@ class RVR(BaseRVM):
             beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
 
         Returns:
-            weight_posterior_mean (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
-            weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
+            mu (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
+            sigma_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
         """
-        # force subclass to return so that the corresponding instance variables will definitely get updated.
-        pass
+        beta: float = beta_matrix[0, 0]
+        sigma_matrix: np.ndarray = np.linalg.inv(
+            active_alpha_matrix +
+            beta * self._sigma_matrix @ self._sigma_matrix.T)
+        mu: np.ndarray = beta * self._sigma_matrix @ active_phi_matrix.T @ target_hat
+        return mu, sigma_matrix
 
     @property
     def y_var(self) -> Union[float, None]:

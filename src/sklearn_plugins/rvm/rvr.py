@@ -12,6 +12,8 @@ class RVR(BaseRVM):
     _y_var: Union[float, None]
     _update_y_var: bool
 
+    _y_var_: float
+
     def __init__(self,
                  kernel_func: Callable[[np.ndarray, np.ndarray],
                                        np.ndarray] = partial(rbf_kernel,
@@ -27,6 +29,7 @@ class RVR(BaseRVM):
                          max_iter=max_iter)
         self._y_var = y_var
         self._update_y_var = update_y_var
+        self._y_var_ = 0.0
 
     @overrides
     def predict(self, X: np.ndarray) -> np.ndarray:
@@ -41,13 +44,20 @@ class RVR(BaseRVM):
         """Initialize beta matrix.
 
         Args:
-            y (np.ndarray): (n_samples, ) The target vector.
+            target (np.ndarray): (n_samples, ) The target vector.
 
         Returns:
             beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix.
             init_beta (float): The initial beta value for self._init_alpha_matrix  function call
         """
-        pass
+        if self._y_var is None or self._y_var <= 0:
+            self._y_var_ = np.var(target)
+            self._y_var_ = 1e-6 if self._y_var_ == 0.0 else self._y_var_
+        init_beta: float = 1 / self._y_var_
+        n_samples: int = target.shape[0]
+        beta: np.ndarray = np.full(shape=(n_samples), fill_value=init_beta)
+        beta_matrix: np.ndarray = np.diag(beta)
+        return beta_matrix, init_beta
 
     @overrides
     def _update_beta_matrix(self, active_alpha_matrix: np.ndarray,

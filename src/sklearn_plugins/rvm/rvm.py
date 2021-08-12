@@ -35,7 +35,10 @@ class BaseRVM(BaseEstimator, ABC):
         # step 1
         beta_matrix, init_beta: np.ndarray = self._init_beta_matrix(target=y)
         # step 2
-        alpha_matrix: np.ndarray = self._init_alpha_matrix()
+        alpha_matrix: np.ndarray = self._init_alpha_matrix(
+            init_beta=init_beta, phi_matrix=phi_matrix, target=y)
+        active_basis_mask: np.ndarray = self._get_active_basis_mask(
+            alpha_matrix=alpha_matrix)
         return self
 
     @abstractmethod
@@ -106,6 +109,19 @@ class BaseRVM(BaseEstimator, ABC):
         alpha_vector[curr_basis_idx] = alpha_i
         alpha_matrix: np.ndarray = np.diag(v=alpha_vector)
         return alpha_matrix
+
+    def _get_active_basis_mask(self, alpha_matrix: np.ndarray) -> np.ndarray:
+        """Get active basis mask
+
+        Args:
+            alpha_matrix (np.ndarray): (n_basis_vector, n_basis_vector) or (M, M). The complete alpha matrix.
+
+        Returns:
+            active_basis_mask (np.ndarray): (n_basis_vecor) or (M,) with all elements being boolean value
+        """
+        alpha_vector: np.ndarray = np.diagonal(a=alpha_matrix)
+        active_basis_mask: np.ndarray = (alpha_vector != np.inf)
+        return active_basis_mask
 
     @abstractmethod
     def _init_beta_matrix(self,

@@ -119,7 +119,7 @@ class RVR(BaseRVM):
         pass
 
     @property
-    def y_var(self) -> float:
+    def y_var(self) -> Union[float, None]:
         return self._y_var
 
     @property

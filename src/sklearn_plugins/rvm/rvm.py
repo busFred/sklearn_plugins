@@ -14,9 +14,9 @@ class BaseRVM(BaseEstimator, ABC):
     _tol: float
     _max_iter: Union[int, None]
 
-    _relevance_vectors_: Union[np.ndarray, None]
-    _weight_posterior_mean_: Union[np.ndarray, None]
-    _weight_posterior_cov_: Union[np.ndarray, None]
+    _relevance_vectors_: Union[np.ndarray, None]  # aka self._X_prime
+    _weight_posterior_mean_: Union[np.ndarray, None]  # aka self._mu
+    _weight_posterior_cov_: Union[np.ndarray, None]  # aka self._sigma
 
     def __init__(self,
                  kernel_func: Callable[[np.ndarray, np.ndarray],
@@ -50,7 +50,12 @@ class BaseRVM(BaseEstimator, ABC):
         active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
             phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
         # step 3
-
+        target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
+        self._mu, self._sigma_matrix = self._compute_weight_posterior(
+            target_hat=target_hat,
+            active_alpha_matrix=active_alpha_matrix,
+            beta_matrix=beta_matrix)
+        
         return self
 
     @abstractmethod
@@ -169,6 +174,37 @@ class BaseRVM(BaseEstimator, ABC):
                                  active_basis_mask: np.ndarray) -> np.ndarray:
         return alpha_matrix[active_basis_mask, :][:, active_basis_mask]
 
+    @abstractmethod
+    def _compute_target_hat(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Compute target hat
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) The input vector.
+            y (np.ndarray): (n_samples, )The ground truth target.
+
+        Returns:
+            target_hat (np.ndarray): (n_samples, ) The predicted target.
+        """
+        pass
+
+    @abstractmethod
+    def _compute_weight_posterior(
+            self, active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
+            target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute the "most probable" weight posterior statistics
+
+        Args:
+            target_hat (np.ndarray): (n_samples, ) The target hat vector.
+            alpha_matrix_active (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors) The current active alpha matrix.
+            beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
+
+        Returns:
+            weight_posterior_mean (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
+            weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
+        """
+        # force subclass to return so that the corresponding instance variables will definitely get updated.
+        pass
+
     # public properties
     @property
     def kernel_func(self) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
@@ -206,3 +242,37 @@ class BaseRVM(BaseEstimator, ABC):
             return self._weight_posterior_cov_.copy()
         else:
             raise ValueError("self._weight_posterior_cov_ is None")
+
+    # protected properties
+    @property
+    def _X_prime(self) -> np.ndarray:
+        if self._relevance_vectors_ is not None:
+            return self._relevance_vectors_
+        else:
+            raise ValueError("self._relevance_vectors_ is None")
+
+    @_X_prime.setter
+    def _X_prime(self, X_prime: np.ndarray):
+        self._relevance_vectors_ = X_prime.copy()
+
+    @property
+    def _mu(self) -> np.ndarray:
+        if self._weight_posterior_mean_ is not None:
+            return self._weight_posterior_mean_
+        else:
+            raise ValueError("self._weight_posterior_mean_ is None")
+
+    @_mu.setter
+    def _mu(self, mu: np.ndarray):
+        self._weight_posterior_mean_ = mu
+
+    @property
+    def _sigma_matrix(self):
+        if self._weight_posterior_cov_ is not None:
+            return self._weight_posterior_cov_
+        else:
+            raise ValueError("self._weight_posterior_cov_ is None")
+
+    @_sigma_matrix.setter
+    def _sigma_matrix(self, sigma: np.ndarray):
+        self._weight_posterior_cov_ = sigma

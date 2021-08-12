@@ -67,6 +67,7 @@ class BaseRVM(BaseEstimator, ABC):
                 phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
             beta_matrix = self._update_beta_matrix(
                 active_alpha_matrix=active_alpha_matrix,
+                beta_matrix=beta_matrix,
                 active_phi_matrix=active_phi_matrix,
                 target=y)
             has_converged: bool = self._has_converged(
@@ -173,6 +174,7 @@ class BaseRVM(BaseEstimator, ABC):
 
     @abstractmethod
     def _update_beta_matrix(self, active_alpha_matrix: np.ndarray,
+                            beta_matrix: np.ndarray,
                             active_phi_matrix: np.ndarray,
                             target: np.ndarray) -> np.ndarray:
         """Update beta matrix.

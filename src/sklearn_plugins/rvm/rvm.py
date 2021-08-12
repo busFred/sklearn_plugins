@@ -74,7 +74,8 @@ class BaseRVM(BaseEstimator, ABC):
                 curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
             if has_converged:
                 break
-        
+        self._set_active_relevance_vectors(X=X,
+                                           active_basis_mask=active_basis_mask)
         return self
 
     @abstractmethod
@@ -290,6 +291,12 @@ class BaseRVM(BaseEstimator, ABC):
         diff: float = np.nansum(alpha_abs_diff)
         return True if diff <= self.tol else False
 
+    def _set_active_relevance_vectors(self, X: np.ndarray,
+                                      active_basis_mask: np.ndarray):
+        if self._include_bias == True:
+            active_basis_mask = active_basis_mask[:-1]
+        self._relevance_vectors_ = X[active_basis_mask]
+
     # public properties
     @property
     def kernel_func(self) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
@@ -335,10 +342,6 @@ class BaseRVM(BaseEstimator, ABC):
             return self._relevance_vectors_
         else:
             raise ValueError("self._relevance_vectors_ is None")
-
-    @_X_prime.setter
-    def _X_prime(self, X_prime: np.ndarray):
-        self._relevance_vectors_ = X_prime.copy()
 
     @property
     def _mu(self) -> np.ndarray:

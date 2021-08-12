@@ -30,7 +30,10 @@ class BaseRVM(BaseEstimator, ABC):
         self._max_iter = max_iter
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseRVM":
+        # step 0
         phi_matrix: np.ndarray = self._compute_phi_matrix(X, X)
+        # step 1
+        beta_matrix: np.ndarray = self._init_beta_matrix(target=y)
 
         return self
 
@@ -49,7 +52,29 @@ class BaseRVM(BaseEstimator, ABC):
         return phi_matrix
 
     @abstractmethod
-    def _init_beta_matrix(self) -> np.ndarray:
+    def _init_beta_matrix(self, target: np.ndarray) -> np.ndarray:
+        """Initialize beta matrix.
+
+        Args:
+            y (np.ndarray): (n_samples, ) The target vector.
+
+        Returns:
+            beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix.
+        """
+        pass
+
+    @abstractmethod
+    def _update_beta_matrix(self, active_alpha_matrix: np.ndarray,
+                            active_phi_matrix: np.ndarray,
+                            target: np.ndarray) -> np.ndarray:
+        """Update beta matrix.
+
+        Args:
+            active_phi_matrix (np.ndarray): [description]
+
+        Returns:
+            np.ndarray: [description]
+        """
         pass
 
     # public properties

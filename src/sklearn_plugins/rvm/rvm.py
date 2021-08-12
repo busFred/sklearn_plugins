@@ -163,7 +163,7 @@ class BaseRVM(BaseEstimator, ABC):
         """Initialize beta matrix.
 
         Args:
-            y (np.ndarray): (n_samples, ) The target vector.
+            target (np.ndarray): (n_samples, ) The target vector.
 
         Returns:
             beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix.

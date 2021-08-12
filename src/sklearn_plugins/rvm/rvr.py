@@ -98,7 +98,7 @@ class RVR(BaseRVM):
         Returns:
             target_hat (np.ndarray): (n_samples, ) The predicted target.
         """
-        pass
+        return y
 
     @overrides
     def _compute_weight_posterior(

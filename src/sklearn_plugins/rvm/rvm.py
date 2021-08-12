@@ -33,8 +33,9 @@ class BaseRVM(BaseEstimator, ABC):
         # step 0
         phi_matrix: np.ndarray = self._compute_phi_matrix(X, X)
         # step 1
-        beta_matrix: np.ndarray = self._init_beta_matrix(target=y)
-
+        beta_matrix, init_beta: np.ndarray = self._init_beta_matrix(target=y)
+        # step 2
+        alpha_matrix: np.ndarray = self._init_alpha_matrix()
         return self
 
     @abstractmethod
@@ -60,8 +61,55 @@ class BaseRVM(BaseEstimator, ABC):
                                    axis=1)
         return phi_matrix
 
+    def _init_select_basis_vector(
+            self, phi_matrix: np.ndarray,
+            target: np.ndarray) -> Tuple[int, np.ndarray]:
+        """Select the largest normalized projection onto the target vector.
+
+        Args:
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in Tipping 2003. The complete phi matrix.
+            target (np.ndarray): (n_sampels, ) the target vector.
+
+        Returns:
+            idx (int): index of the selected vector
+            curr_basis_vector (np.ndarray): (n_samples, 1) the selected basis vector.
+        """
+        proj: np.ndarray = phi_matrix.T @ target
+        phi_norm: np.ndarray = np.linalg.norm(phi_matrix, axis=0)
+        proj_norm: np.ndarray = np.divide(proj, phi_norm)
+        idx: int = np.argmax(proj_norm)
+        curr_basis_vector: np.ndarray = phi_matrix[:, idx]
+        return idx, curr_basis_vector
+
+    def _init_alpha_matrix(self, init_beta: float, phi_matrix: np.ndarray,
+                           target: np.ndarray) -> np.ndarray:
+        """Initialize alpha matrix.
+
+        Args:
+            init_beta (float): The initial beta value used to compute initial alpha_matrix.
+            phi_matrix (np.ndarray): (n_samples, n_basis_vectors) The complete phi matrix.
+            target (np.ndarray): (n_samples, ) The target vector.
+
+        Returns:
+            alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) or (M, M) in Tipping 2003. The complete alpha matrix.
+        """
+        curr_basis_idx, curr_basis_vector = self._init_select_basis_vector(
+            phi_matrix=phi_matrix, target=target)
+        alpha_vector: np.ndarray = np.full(shape=(phi_matrix.shape[1]),
+                                           fill_value=np.inf)
+        basis_norm: float = np.linalg.norm(curr_basis_vector, axis=0)
+        # TODO have index out of bound exception
+        # modify beta as instance variable
+        alpha_i: float = basis_norm**2 / ((
+            (curr_basis_vector.T @ target)**2 / basis_norm**2) -
+                                          (1 / init_beta))
+        alpha_vector[curr_basis_idx] = alpha_i
+        alpha_matrix: np.ndarray = np.diag(v=alpha_vector)
+        return alpha_matrix
+
     @abstractmethod
-    def _init_beta_matrix(self, target: np.ndarray) -> np.ndarray:
+    def _init_beta_matrix(self,
+                          target: np.ndarray) -> Tuple[np.ndarray, float]:
         """Initialize beta matrix.
 
         Args:
@@ -69,6 +117,7 @@ class BaseRVM(BaseEstimator, ABC):
 
         Returns:
             beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix.
+            init_beta (float): The initial beta value for self._init_alpha_matrix  function call
         """
         pass
 

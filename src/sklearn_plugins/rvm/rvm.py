@@ -44,7 +44,7 @@ class BaseRVM(BaseEstimator, ABC):
         active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
             phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
         # step 3
-        
+
         return self
 
     @abstractmethod
@@ -107,8 +107,6 @@ class BaseRVM(BaseEstimator, ABC):
         alpha_vector: np.ndarray = np.full(shape=(phi_matrix.shape[1]),
                                            fill_value=np.inf)
         basis_norm: float = np.linalg.norm(curr_basis_vector, axis=0)
-        # TODO have index out of bound exception
-        # modify beta as instance variable
         alpha_i: float = basis_norm**2 / ((
             (curr_basis_vector.T @ target)**2 / basis_norm**2) -
                                           (1 / init_beta))

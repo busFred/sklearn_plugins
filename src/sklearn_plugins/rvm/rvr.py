@@ -61,6 +61,7 @@ class RVR(BaseRVM):
 
     @overrides
     def _update_beta_matrix(self, active_alpha_matrix: np.ndarray,
+                            beta_matrix: np.ndarray,
                             active_phi_matrix: np.ndarray,
                             target: np.ndarray) -> np.ndarray:
         """Update beta matrix.
@@ -71,7 +72,20 @@ class RVR(BaseRVM):
         Returns:
             np.ndarray: [description]
         """
-        pass
+        if self._update_y_var == False:
+            return beta_matrix
+        n_samples: int = target.shape[0]
+        n_active_basis_vectors: int = active_alpha_matrix.shape[0]
+        y = active_phi_matrix @ self._mu
+        loss_norm: float = np.linalg.norm(y - target)
+        alpha_diag_vector: np.ndarray = np.diagonal(active_alpha_matrix)
+        sigma_diag_vector: np.ndarray = np.diagonal(self._sigma_matrix)
+        alpha_diag_dot_cov_diag: float = alpha_diag_vector.T @ sigma_diag_vector
+        beta: float = loss_norm**2 / (n_samples - n_active_basis_vectors +
+                                      alpha_diag_dot_cov_diag)
+        self._y_var_ = 1 / beta
+        beta_matrix = np.diagonal(np.zeros_like(beta_matrix), beta)
+        return beta_matrix
 
     @overrides
     def _compute_target_hat(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:

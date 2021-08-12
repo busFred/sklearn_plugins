@@ -46,12 +46,16 @@ class BaseRVM(BaseEstimator, ABC):
             alpha_matrix=alpha_matrix)
         active_alpha_matrix: np.ndarray = self._get_active_alpha_matrix(
             alpha_matrix=alpha_matrix, active_basis_mask=active_basis_mask)
+        active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
+            phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
+        # step 3 - 8
         prev_alpha: np.ndarray = alpha_matrix.copy()
         curr_iter: int = 0
         while True if self._max_iter is None else curr_iter < self._max_iter:
             # step 3
             target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
             self._mu, self._sigma_matrix = self._compute_weight_posterior(
+                active_phi_matrix=active_phi_matrix,
                 active_alpha_matrix=active_alpha_matrix,
                 beta_matrix=beta_matrix,
                 target_hat=target_hat)
@@ -210,7 +214,8 @@ class BaseRVM(BaseEstimator, ABC):
 
     @abstractmethod
     def _compute_weight_posterior(
-            self, active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
+            self, active_phi_matrix: np.ndarray,
+            active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
             target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the "most probable" or "MP" weight posterior statistics
 

@@ -39,6 +39,12 @@ class BaseRVM(BaseEstimator, ABC):
             init_beta=init_beta, phi_matrix=phi_matrix, target=y)
         active_basis_mask: np.ndarray = self._get_active_basis_mask(
             alpha_matrix=alpha_matrix)
+        active_alpha_matrix: np.ndarray = self._get_active_alpha_matrix(
+            alpha_matrix=alpha_matrix, active_basis_mask=active_basis_mask)
+        active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
+            phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
+        # step 3
+        
         return self
 
     @abstractmethod
@@ -150,6 +156,14 @@ class BaseRVM(BaseEstimator, ABC):
             np.ndarray: [description]
         """
         pass
+
+    def _get_active_phi_matrix(self, phi_matrix: np.ndarray,
+                               active_basis_mask: np.ndarray) -> np.ndarray:
+        return phi_matrix[active_basis_mask, :][:, active_basis_mask]
+
+    def _get_active_alpha_matrix(self, alpha_matrix: np.ndarray,
+                                 active_basis_mask: np.ndarray) -> np.ndarray:
+        return alpha_matrix[active_basis_mask, :][:, active_basis_mask]
 
     # public properties
     @property

@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
-from numpy.core.fromnumeric import shape
 from sklearn.base import BaseEstimator
 from sklearn.metrics.pairwise import rbf_kernel
 

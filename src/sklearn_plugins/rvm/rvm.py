@@ -43,6 +43,15 @@ class BaseRVM(BaseEstimator, ABC):
 
     def _compute_phi_matrix(self, X: np.ndarray,
                             X_prime: np.ndarray) -> np.ndarray:
+        """Compute phi_matrix.
+
+        Args:
+            X (np.ndarray): (n_new_samples n_features) During inference, `X` is the new input vectors. 
+            X_prime (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in 2003 Tipphing. During inference, `X` is the `self._relevance_vectors_`.
+
+        Returns:
+            phi_matrix (np.ndarray): (n_new_samples, n_samples) The computed phi_matrix.
+        """
         phi_matrix: np.ndarray = self._kernel_func(X, X_prime)
         if self._include_bias == True:
             n_samples: int = phi_matrix.shape[0]

@@ -12,8 +12,6 @@ class RVR(BaseRVM):
     y_var: Union[float, None]
     update_y_var: bool
 
-    _beta_: float
-
     def __init__(
             self,
             kernel: Union[str, Callable[[np.ndarray, np.ndarray],
@@ -39,18 +37,18 @@ class RVR(BaseRVM):
                          random_state=random_state)
         self.y_var = y_var
         self.update_y_var = update_y_var
-        self._beta_ = 1 / 1e-6
+        # self.beta_ = 1 / 1e-6
 
     @overrides
     def predict(self, X: np.ndarray) -> np.ndarray:
         y: np.ndarray = self._apply_kernel_func(
-            X=X, Y=self._phi_active_) @ self._weight_posterior_mean_
+            X=X, Y=self._relevance_vectors_) @ self._weight_posterior_mean_
         return y
 
     @overrides
     def _init_beta_matrix(self, phi_matrix: np.ndarray,
                           target: np.ndarray) -> np.ndarray:
-        """Compute the beta matrix or B matrix in the paper.
+        """Compute the beta matrix or B matrix in the paper and update self.beta_initial_.
         Args:
             phi_matrix (np.ndarray): (n_samples, n_basis_vectors) The complete phi matrix.
             target (np.ndarray): (n_samples, )the target vector of the problem.
@@ -149,7 +147,7 @@ class RVR(BaseRVM):
         alpha_diag_vector: np.ndarray = np.diagonal(alpha_matrix_active)
         cov_diag_vector: np.ndarray = np.diagonal(self._weight_posterior_cov_)
         alpha_diag_vector_dot_cov_diag_vector: float = alpha_diag_vector @ cov_diag_vector
-        self._beta_ = loss_norm**2 / (n_samples - n_active_basis_vectors +
-                                      alpha_diag_vector_dot_cov_diag_vector)
-        beta_matrix = np.diagonal(np.zeros_like(beta_matrix), self._beta_)
+        self.beta_ = loss_norm**2 / (n_samples - n_active_basis_vectors +
+                                     alpha_diag_vector_dot_cov_diag_vector)
+        beta_matrix = np.diagonal(np.zeros_like(beta_matrix), self.beta_)
         return beta_matrix

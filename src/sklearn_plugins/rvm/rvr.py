@@ -22,11 +22,13 @@ class RVR(BaseRVM):
                  update_y_var: bool = False,
                  include_bias: bool = True,
                  tol: float = 1e-3,
-                 max_iter: Optional[int] = None) -> None:
+                 max_iter: Optional[int] = None,
+                 verbose: bool = True) -> None:
         super().__init__(kernel_func=kernel_func,
                          include_bias=include_bias,
                          tol=tol,
-                         max_iter=max_iter)
+                         max_iter=max_iter,
+                         verbose=verbose)
         self._y_var = y_var
         self._update_y_var = update_y_var
         self._y_var_ = 0.0
@@ -101,7 +103,7 @@ class RVR(BaseRVM):
         return y
 
     @overrides
-    def _compute_weight_posterior(
+    def _update_weight_posterior(
             self, active_phi_matrix: np.ndarray,
             active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
             target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -116,11 +118,11 @@ class RVR(BaseRVM):
             mu (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
             sigma_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
         """
-        beta: float = beta_matrix[0, 0]
+        # beta: float = beta_matrix[0, 0]
         sigma_matrix: np.ndarray = np.linalg.inv(
             active_alpha_matrix +
-            beta * self._sigma_matrix @ self._sigma_matrix.T)
-        mu: np.ndarray = beta * self._sigma_matrix @ active_phi_matrix.T @ target_hat
+            active_phi_matrix.T @ beta_matrix @ active_phi_matrix)
+        mu: np.ndarray = sigma_matrix @ active_phi_matrix.T @ beta_matrix @ target_hat
         return mu, sigma_matrix
 
     @property

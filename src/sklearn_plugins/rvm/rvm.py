@@ -99,7 +99,7 @@ class BaseRVM(BaseEstimator, ABC):
         return self
 
     @abstractmethod
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray, **kargs):
         pass
 
     def _compute_phi_matrix(self, X: np.ndarray,

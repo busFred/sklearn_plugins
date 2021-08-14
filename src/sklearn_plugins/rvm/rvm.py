@@ -12,6 +12,7 @@ class BaseRVM(BaseEstimator, ABC):
     _include_bias: bool
     _tol: float
     _max_iter: Union[int, None]
+    _verbose: bool
 
     _relevance_vectors_: Union[np.ndarray, None]  # aka self._X_prime
     _weight_posterior_mean_: Union[np.ndarray, None]  # aka self._mu
@@ -23,12 +24,14 @@ class BaseRVM(BaseEstimator, ABC):
                                                              gamma=None),
                  include_bias: bool = True,
                  tol: float = 1e-3,
-                 max_iter: Optional[int] = None) -> None:
+                 max_iter: Optional[int] = None,
+                 verbose: bool = True) -> None:
         super().__init__()
         self._kernel_func = kernel_func
         self._include_bias = include_bias
         self._tol = tol
         self._max_iter = max_iter
+        self._verbose = verbose
 
         self._relevance_vectors_ = None
         self._weight_posterior_mean_ = None
@@ -48,13 +51,18 @@ class BaseRVM(BaseEstimator, ABC):
             alpha_matrix=alpha_matrix, active_basis_mask=active_basis_mask)
         active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
             phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
+        n_active_basis_vectors: int = active_alpha_matrix.shape[1]
+        self._init_weight_posterior(
+            n_active_basis_vectors=n_active_basis_vectors)
         # step 3 - 8
         prev_alpha: np.ndarray = alpha_matrix.copy()
         curr_iter: int = 0
         while True if self._max_iter is None else curr_iter < self._max_iter:
+            if self._verbose == True:
+                print(str.format("iter {} ", curr_iter), end="")
             # step 3
             target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
-            self._mu, self._sigma_matrix = self._compute_weight_posterior(
+            self._mu, self._sigma_matrix = self._update_weight_posterior(
                 active_phi_matrix=active_phi_matrix,
                 active_alpha_matrix=active_alpha_matrix,
                 beta_matrix=beta_matrix,
@@ -65,8 +73,8 @@ class BaseRVM(BaseEstimator, ABC):
                 beta_matrix=beta_matrix,
                 target_hat=target_hat)
             # step 4 - 8
-            alpha_matrix, active_basis_mask, active_alpha_matrix = self._prune(
-                sparsity=sparsity, quality=quality)
+            alpha_matrix, active_basis_mask, active_alpha_matrix = self._update_alpha_matrix(
+                alpha_matrix=alpha_matrix, sparsity=sparsity, quality=quality)
             active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
                 phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
             beta_matrix = self._update_beta_matrix(
@@ -78,6 +86,14 @@ class BaseRVM(BaseEstimator, ABC):
                 curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
             if has_converged:
                 break
+            prev_alpha: np.ndarray = alpha_matrix.copy()
+            curr_iter = curr_iter + 1
+        target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
+        self._mu, self._sigma_matrix = self._update_weight_posterior(
+            active_phi_matrix=active_phi_matrix,
+            active_alpha_matrix=active_alpha_matrix,
+            beta_matrix=beta_matrix,
+            target_hat=target_hat)
         self._set_active_relevance_vectors(X=X,
                                            active_basis_mask=active_basis_mask)
         return self
@@ -193,7 +209,7 @@ class BaseRVM(BaseEstimator, ABC):
 
     def _get_active_phi_matrix(self, phi_matrix: np.ndarray,
                                active_basis_mask: np.ndarray) -> np.ndarray:
-        return phi_matrix[active_basis_mask, :][:, active_basis_mask]
+        return phi_matrix[:, active_basis_mask]
 
     def _get_active_alpha_matrix(self, alpha_matrix: np.ndarray,
                                  active_basis_mask: np.ndarray) -> np.ndarray:
@@ -212,8 +228,13 @@ class BaseRVM(BaseEstimator, ABC):
         """
         pass
 
+    def _init_weight_posterior(self, n_active_basis_vectors: int):
+        self._weight_posterior_mean_ = np.zeros(shape=n_active_basis_vectors)
+        self._weight_posterior_cov_ = np.ones(shape=(n_active_basis_vectors,
+                                                     n_active_basis_vectors))
+
     @abstractmethod
-    def _compute_weight_posterior(
+    def _update_weight_posterior(
             self, active_phi_matrix: np.ndarray,
             active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
             target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -258,28 +279,53 @@ class BaseRVM(BaseEstimator, ABC):
         quality: np.ndarray = phi_m_tr_beta @ target_hat - phi_m_tr_beta_phi_sigma_phi_tr_beta @ target_hat
         return sparsity, quality
 
-    def _prune(
-            self, sparsity: np.ndarray,
+    def _update_alpha_matrix(
+            self, alpha_matrix: np.ndarray, sparsity: np.ndarray,
             quality: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Prune design matrix and update alpha matrix according to sparsity and quality analysis.
 
         Args:
+            alpha_matrix (np.ndarray): (n_samples, n_basis_vectors) The complete alpha matrix.
             sparsity (np.ndarray): (n_basis_vectors, ) The sparsity of all basis vectors.
             quality (np.ndarray): (n_basis_vectors, ) The quality  of all basis vectors
 
         Returns:
-            alpha_matrix (np.ndarray): (n_basis_vectors, ) The updated active alpha matrix.
-            active_basis_mask (np.ndarray): (n_basis_vectors, ) The updated active basis mask.
+            new_alpha_matrix (np.ndarray): (n_basis_vectors, n_basis_vectors) The updated complete alpha matrix.
+            new_active_basis_mask (np.ndarray): (n_basis_vectors, ) The updated active basis mask.
+            new_active_alpha_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors) The updated new active alpha matrix.
         """
         theta: np.ndarray = quality**2 - sparsity
-        active_basis_mask: np.ndarray = (theta > 0)
-        n_basis_vectors: int = quality.shape[0]
-        alpha: np.ndarray = np.full(shape=(n_basis_vectors), fill_value=np.inf)
-        new_alpha: np.ndarray = sparsity**2 / theta
-        alpha[active_basis_mask] = new_alpha[active_basis_mask]
-        alpha_matrix: np.ndarray = np.diag(alpha)
-        active_alpha_matrix: np.ndarray = np.diag(new_alpha[active_basis_mask])
-        return alpha_matrix, active_basis_mask, active_alpha_matrix
+        alpha_diag: np.ndarray = np.diagonal(alpha_matrix).copy()
+        re_estimate_mask: np.ndarray = (theta > 0) & (alpha_diag < np.inf)
+        update_mask: np.ndarray = (theta > 0) & (alpha_diag == np.inf)
+        delete_mask: np.ndarray = (theta <= 0) & (alpha_diag < np.inf)
+        alpha_new_diag: np.ndarray = sparsity**2 / theta
+        alpha_new_diag[delete_mask] = np.inf
+        delta_log_weight_posterior: np.ndarray = np.zeros_like(alpha_diag)
+        delta_log_weight_posterior[
+            re_estimate_mask] = quality[re_estimate_mask]**2 / (
+                sparsity[re_estimate_mask] + 1 /
+                (1 / alpha_new_diag[re_estimate_mask] -
+                 1 / alpha_diag[re_estimate_mask])) - np.log(
+                     1 + sparsity[re_estimate_mask] *
+                     (1 / alpha_new_diag[re_estimate_mask] -
+                      1 / alpha_diag[re_estimate_mask]))
+        delta_log_weight_posterior[update_mask] = (
+            quality[update_mask]**2 -
+            sparsity[update_mask]) / sparsity[update_mask] + np.log(
+                sparsity[update_mask] / quality[update_mask]**2)
+        delta_log_weight_posterior[delete_mask] = quality[delete_mask]**2 / (
+            sparsity[delete_mask] - alpha_diag[delete_mask]) - np.log(
+                1 - sparsity[delete_mask] / alpha_diag[delete_mask])
+        selected_basis_idx: np.ndarray = np.argmax(delta_log_weight_posterior)
+        alpha_diag[selected_basis_idx] = alpha_new_diag[selected_basis_idx]
+        new_alpha_matrix: np.ndarray = np.diag(alpha_diag)
+        new_active_basis_mask: np.ndarray = self._get_active_basis_mask(
+            alpha_matrix=new_alpha_matrix)
+        new_active_alpha_matrix: np.ndarray = self._get_active_alpha_matrix(
+            alpha_matrix=new_alpha_matrix,
+            active_basis_mask=new_active_basis_mask)
+        return new_alpha_matrix, new_active_basis_mask, new_active_alpha_matrix
 
     def _has_converged(self, curr_alpha_matrix: np.ndarray,
                        prev_alpha_matrix: np.ndarray) -> bool:
@@ -295,11 +341,14 @@ class BaseRVM(BaseEstimator, ABC):
         alpha_abs_diff: np.ndarray = np.abs(curr_alpha_matrix -
                                             prev_alpha_matrix)
         diff: float = np.nansum(alpha_abs_diff)
+        if self._verbose == True:
+            print(str.format("alpha_diff {}", diff))
         return True if diff <= self.tol else False
 
     def _set_active_relevance_vectors(self, X: np.ndarray,
                                       active_basis_mask: np.ndarray):
         if self._include_bias == True:
+            self._include_bias = active_basis_mask[-1]
             active_basis_mask = active_basis_mask[:-1]
         self._relevance_vectors_ = X[active_basis_mask]
 
@@ -319,6 +368,10 @@ class BaseRVM(BaseEstimator, ABC):
     @property
     def max_iter(self) -> Union[int, None]:
         return self._max_iter
+
+    @property
+    def verbose(self):
+        return self._verbose
 
     @property
     def relevance_vectors_(self) -> np.ndarray:

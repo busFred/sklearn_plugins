@@ -1,4 +1,5 @@
 #%%
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn import datasets
 from sklearn_plugins.rvm.rvr import RVR
@@ -22,7 +23,12 @@ y_train_pred: np.ndarray = rvr.predict(X_train)
 # %%
 print(np.average(np.abs(y_train_pred - y_train)))
 # %%
-import matplotlib.pyplot as plt
 plt.scatter(X_train, y_train)
 plt.scatter(X_train, y_train_pred)
 # %%
+y_val_pred: np.ndarray = rvr.predict(X_val)
+# %%
+print(np.average(np.abs(y_val_pred - y_val)))
+#%%
+plt.scatter(X_val, y_val)
+plt.scatter(X_val, y_val_pred)

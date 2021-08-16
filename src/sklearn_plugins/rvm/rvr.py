@@ -46,7 +46,8 @@ class RVR(BaseRVM, RegressorMixin):
         if return_var == False:
             return y
         y_var: np.ndarray = np.full_like(y, self._y_var_)
-        y_var = y_var + phi_matrix @ self._sigma_matrix @ phi_matrix.T
+        y_var = y_var + np.diagonal(
+            phi_matrix @ self._sigma_matrix @ phi_matrix.T)
         return y, y_var
 
     @overrides

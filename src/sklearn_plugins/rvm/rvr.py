@@ -99,7 +99,9 @@ class RVR(BaseRVM, RegressorMixin):
         return beta_matrix
 
     @overrides
-    def _compute_target_hat(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    def _compute_target_hat(self, active_phi_matrix: np.ndarray,
+                            beta_matrix: np.ndarray,
+                            y: np.ndarray) -> np.ndarray:
         """Compute target hat
 
         Args:

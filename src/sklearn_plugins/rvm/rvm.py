@@ -61,7 +61,10 @@ class BaseRVM(BaseEstimator, ABC):
             if self._verbose == True:
                 print(str.format("iter {} ", curr_iter), end="")
             # step 3
-            target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
+            target_hat: np.ndarray = self._compute_target_hat(
+                active_phi_matrix=active_phi_matrix,
+                beta_matrix=beta_matrix,
+                y=y)
             self._mu, self._sigma_matrix = self._update_weight_posterior(
                 active_phi_matrix=active_phi_matrix,
                 active_alpha_matrix=active_alpha_matrix,
@@ -88,7 +91,8 @@ class BaseRVM(BaseEstimator, ABC):
                 break
             prev_alpha: np.ndarray = alpha_matrix.copy()
             curr_iter = curr_iter + 1
-        target_hat: np.ndarray = self._compute_target_hat(X=X, y=y)
+        target_hat: np.ndarray = self._compute_target_hat(
+            active_phi_matrix=active_phi_matrix, beta_matrix=beta_matrix, y=y)
         self._mu, self._sigma_matrix = self._update_weight_posterior(
             active_phi_matrix=active_phi_matrix,
             active_alpha_matrix=active_alpha_matrix,
@@ -216,7 +220,9 @@ class BaseRVM(BaseEstimator, ABC):
         return alpha_matrix[active_basis_mask, :][:, active_basis_mask]
 
     @abstractmethod
-    def _compute_target_hat(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    def _compute_target_hat(self, active_phi_matrix: np.ndarray,
+                            beta_matrix: np.ndarray,
+                            y: np.ndarray) -> np.ndarray:
         """Compute target hat
 
         Args:

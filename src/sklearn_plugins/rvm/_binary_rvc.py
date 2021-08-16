@@ -2,6 +2,7 @@ from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from overrides.overrides import overrides
+from sklearn.utils.validation import check_X_y
 
 from .rvm import BaseRVM
 
@@ -32,7 +33,10 @@ class _BinaryRVC(BaseRVM):
             beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix.
             init_beta (float): The initial beta value for self._init_alpha_matrix  function call
         """
-        pass
+        beta_diag = target.copy().astype(np.float)
+        beta_matrix: np.ndarray = np.diag(beta_diag)
+        init_beta: float = np.mean(beta_diag)
+        return beta_matrix, init_beta
 
     @overrides
     def _update_beta_matrix(self, active_alpha_matrix: np.ndarray,

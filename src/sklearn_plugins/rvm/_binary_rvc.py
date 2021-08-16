@@ -52,14 +52,16 @@ class _BinaryRVC(BaseRVM):
         Returns:
             np.ndarray: [description]
         """
-        y: np.ndarray = active_phi_matrix @ self._mu
-        prob: np.ndarray = sigmoid(y)
+        prob: np.ndarray = self._predict_training(
+            active_phi_matrix=active_phi_matrix)
         beta_diag: np.ndarray = prob * (1 - prob)
         beta_matrix = np.diag(beta_diag)
         return beta_matrix
 
     @overrides
-    def _compute_target_hat(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    def _compute_target_hat(self, active_phi_matrix: np.ndarray,
+                            beta_matrix: np.ndarray,
+                            y: np.ndarray) -> np.ndarray:
         """Compute target hat
 
         Args:
@@ -69,7 +71,13 @@ class _BinaryRVC(BaseRVM):
         Returns:
             target_hat (np.ndarray): (n_samples, ) The predicted target.
         """
-        pass
+        # re-assign to match paper expression
+        t: np.ndarray = y
+        y = self._predict_training(active_phi_matrix=active_phi_matrix)
+        beta_inv: np.ndarray = np.linalg.inv(beta_matrix)
+        target_hat: np.ndarray = active_phi_matrix @ self._mu + beta_inv @ (t -
+                                                                            y)
+        return target_hat
 
     @overrides
     def _update_weight_posterior(
@@ -89,3 +97,16 @@ class _BinaryRVC(BaseRVM):
         """
         # force subclass to return so that the corresponding instance variables will definitely get updated.
         pass
+
+    def _predict_training(self, active_phi_matrix: np.ndarray) -> np.ndarray:
+        """Predict training dataset with current active_phi_matrix.
+
+        Args:
+            active_phi_matrix (np.ndarray): (n_samples, n_active_basis) The current active phi matrix.
+
+        Returns:
+            pred (np.ndarray): (n_samples, ) The prediction of training dataset given current active phi matrix.
+        """
+        y: np.ndarray = active_phi_matrix @ self._mu
+        pred: np.ndarray = sigmoid(y)
+        return pred

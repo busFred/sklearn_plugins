@@ -1,24 +1,15 @@
 from functools import partial
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
+from overrides.overrides import overrides
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics.pairwise import rbf_kernel
 
-from .rvm import BaseRVM
+from ._binary_rvc import _BinaryRVC
 
 
 class RVC(ClassifierMixin, BaseEstimator):
-    class _BinaryRVC(BaseRVM):
-        def __init__(self, kernel_func: Callable[[np.ndarray, np.ndarray],
-                                                 np.ndarray],
-                     include_bias: bool, tol: float, max_iter: Optional[int],
-                     verbose: bool) -> None:
-            super().__init__(kernel_func=kernel_func,
-                             include_bias=include_bias,
-                             tol=tol,
-                             max_iter=max_iter,
-                             verbose=verbose)
 
     _kernel_func: Callable[[np.ndarray, np.ndarray], np.ndarray]
     _include_bias: bool
@@ -48,6 +39,12 @@ class RVC(ClassifierMixin, BaseEstimator):
         self._relevance_vectors_ = None
         self._weight_posterior_mean_ = None
         self._weight_posterior_cov_ = None
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "RVC":
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        pass
 
     @property
     def kernel_func(self) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:

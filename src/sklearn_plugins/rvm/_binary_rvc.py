@@ -1,6 +1,7 @@
 from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
+from scipy.special import expit as sigmoid
 from overrides.overrides import overrides
 from sklearn.utils.validation import check_X_y
 
@@ -46,12 +47,16 @@ class _BinaryRVC(BaseRVM):
         """Update beta matrix.
 
         Args:
-            active_phi_matrix (np.ndarray): [description]
+            active_phi_matrix (np.ndarray): (n_samples, n_active_basis_functions)
 
         Returns:
             np.ndarray: [description]
         """
-        pass
+        y: np.ndarray = active_phi_matrix @ self._mu
+        prob: np.ndarray = sigmoid(y)
+        beta_diag: np.ndarray = prob * (1 - prob)
+        beta_matrix = np.diag(beta_diag)
+        return beta_matrix
 
     @overrides
     def _compute_target_hat(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:

@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from scipy.special import expit as sigmoid
@@ -18,8 +18,12 @@ class _BinaryRVC(BaseRVM):
                          verbose=verbose)
 
     @overrides
-    def predict(self, X: np.ndarray):
-        pass
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        phi_matrix: np.ndarray = self._compute_phi_matrix(
+            X=X, X_prime=self._X_prime)
+        pred: np.ndarray = self._predict_phi_matrix(
+            active_phi_matrix=phi_matrix)
+        return pred
 
     @overrides
     def _init_beta_matrix(self,
@@ -51,7 +55,7 @@ class _BinaryRVC(BaseRVM):
         Returns:
             np.ndarray: [description]
         """
-        prob: np.ndarray = self._predict_training(
+        prob: np.ndarray = self._predict_phi_matrix(
             active_phi_matrix=active_phi_matrix)
         beta_diag: np.ndarray = prob * (1 - prob)
         beta_matrix = np.diag(beta_diag)
@@ -72,7 +76,7 @@ class _BinaryRVC(BaseRVM):
         """
         # re-assign to match paper expression
         t: np.ndarray = y
-        y = self._predict_training(active_phi_matrix=active_phi_matrix)
+        y = self._predict_phi_matrix(active_phi_matrix=active_phi_matrix)
         beta_inv: np.ndarray = np.linalg.inv(beta_matrix)
         target_hat: np.ndarray = active_phi_matrix @ self._mu + beta_inv @ (t -
                                                                             y)
@@ -101,7 +105,7 @@ class _BinaryRVC(BaseRVM):
     #     weight_posterior_mean: np.ndarray = weight_posterior_cov_matrix @ phi_tr_beta @ target_hat
     #     return weight_posterior_mean, weight_posterior_cov_matrix
 
-    def _predict_training(self, active_phi_matrix: np.ndarray) -> np.ndarray:
+    def _predict_phi_matrix(self, active_phi_matrix: np.ndarray) -> np.ndarray:
         """Predict training dataset with current active_phi_matrix.
 
         Args:

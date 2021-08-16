@@ -1,8 +1,7 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 from scipy.special import expit as sigmoid
-from scipy.optimize import minimize
 from overrides.overrides import overrides
 
 from .rvm import BaseRVM

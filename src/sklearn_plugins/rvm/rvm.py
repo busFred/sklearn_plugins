@@ -239,7 +239,25 @@ class BaseRVM(BaseEstimator, ABC):
         self._weight_posterior_cov_ = np.ones(shape=(n_active_basis_vectors,
                                                      n_active_basis_vectors))
 
-    @abstractmethod
+    # @abstractmethod
+    # def _update_weight_posterior(
+    #         self, active_phi_matrix: np.ndarray,
+    #         active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
+    #         target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    #     """Compute the "most probable" or "MP" weight posterior statistics
+
+    #     Args:
+    #         target_hat (np.ndarray): (n_samples, ) The target hat vector.
+    #         alpha_matrix_active (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors) The current active alpha matrix.
+    #         beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
+
+    #     Returns:
+    #         weight_posterior_mean (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
+    #         weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
+    #     """
+    #     # force subclass to return so that the corresponding instance variables will definitely get updated.
+    #     pass
+
     def _update_weight_posterior(
             self, active_phi_matrix: np.ndarray,
             active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
@@ -252,11 +270,15 @@ class BaseRVM(BaseEstimator, ABC):
             beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
 
         Returns:
-            weight_posterior_mean (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
-            weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
+            mu (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
+            sigma_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
         """
-        # force subclass to return so that the corresponding instance variables will definitely get updated.
-        pass
+        # beta: float = beta_matrix[0, 0]
+        sigma_matrix: np.ndarray = np.linalg.inv(
+            active_alpha_matrix +
+            active_phi_matrix.T @ beta_matrix @ active_phi_matrix)
+        mu: np.ndarray = sigma_matrix @ active_phi_matrix.T @ beta_matrix @ target_hat
+        return mu, sigma_matrix
 
     def _compute_sparsity_quality(
             self, active_basis_mask: np.ndarray, phi_matrix: np.ndarray,

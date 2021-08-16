@@ -2,8 +2,8 @@ from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from scipy.special import expit as sigmoid
+from scipy.optimize import minimize
 from overrides.overrides import overrides
-from sklearn.utils.validation import check_X_y
 
 from .rvm import BaseRVM
 
@@ -79,24 +79,28 @@ class _BinaryRVC(BaseRVM):
                                                                             y)
         return target_hat
 
-    @overrides
-    def _update_weight_posterior(
-            self, active_phi_matrix: np.ndarray,
-            active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
-            target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Compute the "most probable" or "MP" weight posterior statistics
+    # @overrides
+    # def _update_weight_posterior(
+    #         self, active_phi_matrix: np.ndarray,
+    #         active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
+    #         target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    #     """Compute the "most probable" or "MP" weight posterior statistics
 
-        Args:
-            target_hat (np.ndarray): (n_samples, ) The target hat vector.
-            alpha_matrix_active (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors) The current active alpha matrix.
-            beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
+    #     Args:
+    #         target_hat (np.ndarray): (n_samples, ) The target hat vector.
+    #         alpha_matrix_active (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors) The current active alpha matrix.
+    #         beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
 
-        Returns:
-            weight_posterior_mean (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
-            weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
-        """
-        # force subclass to return so that the corresponding instance variables will definitely get updated.
-        pass
+    #     Returns:
+    #         weight_posterior_mean (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
+    #         weight_posterior_cov_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
+    #     """
+    #     # force subclass to return so that the corresponding instance variables will definitely get updated.
+    #     phi_tr_beta: np.ndarray = active_phi_matrix.T @ beta_matrix
+    #     weight_posterior_cov_matrix: np.ndarray = np.linalg.inv(
+    #         phi_tr_beta @ active_phi_matrix + active_alpha_matrix)
+    #     weight_posterior_mean: np.ndarray = weight_posterior_cov_matrix @ phi_tr_beta @ target_hat
+    #     return weight_posterior_mean, weight_posterior_cov_matrix
 
     def _predict_training(self, active_phi_matrix: np.ndarray) -> np.ndarray:
         """Predict training dataset with current active_phi_matrix.

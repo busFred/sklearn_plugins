@@ -25,7 +25,7 @@ class BaseRVM(BaseEstimator, ABC):
                  include_bias: bool = True,
                  tol: float = 1e-3,
                  max_iter: Optional[int] = None,
-                 verbose: bool = True) -> None:
+                 verbose: bool = False) -> None:
         super().__init__()
         self._kernel_func = kernel_func
         self._include_bias = include_bias

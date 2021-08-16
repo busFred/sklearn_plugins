@@ -3,12 +3,13 @@ from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from overrides import overrides
+from sklearn.base import RegressorMixin
 from sklearn.metrics.pairwise import rbf_kernel
 
 from .rvm import BaseRVM
 
 
-class RVR(BaseRVM):
+class RVR(BaseRVM, RegressorMixin):
     _y_var: Union[float, None]
     _update_y_var: bool
 

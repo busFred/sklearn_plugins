@@ -23,13 +23,13 @@ rvr: RVR = RVR(max_iter=300, verbose=True, update_y_var=True)
 rvr.fit(X=X_train, y=y_train)
 
 #%%
-pred_train, train_var = rvr.predict(X=X_train, return_var=True)
+pred_train, train_var = rvr.predict_var(X=X_train)
 train_std = np.sqrt(train_var)
 mse_train: float = mean_squared_error(y_true=y_train, y_pred=pred_train)
 print(str.format("mse_train: {}", mse_train))
 
 #%%
-pred_val, val_var = rvr.predict(X=X_val, return_var=True)
+pred_val, val_var = rvr.predict_var(X=X_val)
 val_std: np.ndarray = np.sqrt(val_var)
 mse_val: float = mean_squared_error(y_true=y_val, y_pred=pred_train)
 print(str.format("mse_val: {}", mse_val))

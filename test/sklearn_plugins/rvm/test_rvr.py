@@ -19,18 +19,16 @@ X_train, X_val, y_train, y_val = train_test_split(Xc,
                                                   random_state=0)
 
 #%%
-rvr: RVR = RVR(max_iter=300, verbose=True)
+rvr: RVR = RVR(max_iter=300, verbose=True, update_y_var=True)
 rvr.fit(X=X_train, y=y_train)
 
 #%%
-pred_train, train_var = rvr.predict(X=X_train, return_var=True)
-train_std = np.sqrt(train_var)
+pred_train = rvr.predict(X=X_train)
 mse_train: float = mean_squared_error(y_true=y_train, y_pred=pred_train)
 print(str.format("mse_train: {}", mse_train))
 
 #%%
-pred_val, val_var = rvr.predict(X=X_val, return_var=True)
-val_std: np.ndarray = np.sqrt(val_var)
+pred_val = rvr.predict(X=X_val)
 mse_val: float = mean_squared_error(y_true=y_val, y_pred=pred_train)
 print(str.format("mse_val: {}", mse_val))
 
@@ -38,15 +36,11 @@ print(str.format("mse_val: {}", mse_val))
 plt.plot()
 plt.scatter(X_train, y_train)
 plt.scatter(X_train, pred_train)
-plt.scatter(X_train, pred_train + train_std)
-plt.scatter(X_train, pred_train - train_std)
 
 #%%
 plt.plot()
 plt.scatter(X_val, y_val)
 plt.scatter(X_val, pred_val)
-plt.scatter(X_val, pred_val + val_std)
-plt.scatter(X_val, pred_val - val_std)
 
 #%%
 print(str.format("relevance_vector shape {}", rvr.relevance_vectors_.shape))

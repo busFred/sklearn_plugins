@@ -1,6 +1,5 @@
-from copy import deepcopy
 from functools import partial
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Union
 
 import numpy as np
 from overrides.overrides import overrides

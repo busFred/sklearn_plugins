@@ -35,16 +35,33 @@ class RVR(BaseRVM, RegressorMixin):
         self._y_var_ = 0.0
 
     @overrides
-    def predict(
-        self,
-        X: np.ndarray,
-        return_var: bool = False
-    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict the output.
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) The samples to be predicted.
+
+        Returns:
+            y (np.ndarray): (n_samples, ) The predicted output.
+        """
         phi_matrix: np.ndarray = self._compute_phi_matrix(
             X=X, X_prime=self._X_prime)
         y: np.ndarray = phi_matrix @ self._mu
-        if return_var == False:
-            return y
+        return y
+
+    def predict_var(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Predict the output along with the variance of the output
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) The samples to be predicted.
+
+        Returns:
+            y (np.ndarray): The prediction of the given X.
+            y_var (np.ndarray): The variance of the prediction.
+        """
+        phi_matrix: np.ndarray = self._compute_phi_matrix(
+            X=X, X_prime=self._X_prime)
+        y: np.ndarray = phi_matrix @ self._mu
         y_var: np.ndarray = np.full_like(y, self._y_var_)
         y_var = y_var + np.diagonal(
             phi_matrix @ self._sigma_matrix @ phi_matrix.T)

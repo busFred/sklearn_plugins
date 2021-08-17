@@ -2,7 +2,6 @@ from functools import partial
 from typing import Callable, List, Optional, Union
 
 import numpy as np
-from overrides.overrides import overrides
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics.pairwise import rbf_kernel
 

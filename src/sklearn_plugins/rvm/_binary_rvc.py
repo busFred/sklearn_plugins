@@ -1,5 +1,4 @@
 from typing import Callable, Optional, Tuple
-from matplotlib.pyplot import axis
 
 import numpy as np
 from scipy.special import expit as sigmoid
@@ -19,14 +18,43 @@ class _BinaryRVC(BaseRVM):
                          verbose=verbose)
 
     @overrides
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: np.ndarray):
+        """Predict the input X.
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) Input data.
+
+        Returns:
+            labels (np.ndarray): (n_samples, ) The predicted labels.
+        """
+        prob: np.ndarray = self.predict_proba(X)
+        labels: np.ndarray = np.argwhere(prob > 0.5)
+        return labels
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Predict the input X with given model
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) Input data.
+
+        Returns:
+            probas (np.ndarray): (n_samples, ) The predicted probabilities.
+        """
         phi_matrix: np.ndarray = self._compute_phi_matrix(
             X=X, X_prime=self._X_prime)
-        pred: np.ndarray = self._predict_phi_matrix(
+        prob: np.ndarray = self._predict_phi_matrix(
             active_phi_matrix=phi_matrix)
-        return pred
+        return prob
 
     def predict_y(self, X: np.ndarray) -> np.ndarray:
+        """Compute y with given model
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) Input data.
+
+        Returns:
+            y (np.ndarray): (n_samples, ) The predicted y before applying sigmoid.
+        """
         phi_matrix: np.ndarray = self._compute_phi_matrix(
             X=X, X_prime=self._X_prime)
         y: np.ndarray = phi_matrix @ self._mu

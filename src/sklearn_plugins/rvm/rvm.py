@@ -99,13 +99,14 @@ class BaseRVM(BaseEstimator, ABC):
                 y=y)
             alpha_matrix, active_basis_mask, active_alpha_matrix = self._update_alpha_matrix(
                 alpha_matrix=alpha_matrix, sparsity=sparsity, quality=quality)
-
             has_converged: bool = self._has_converged(
                 curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
             if has_converged:
                 break
             prev_alpha: np.ndarray = alpha_matrix.copy()
             curr_iter = curr_iter + 1
+        active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
+            phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
         self._mu, self._sigma_matrix = self._update_weight_posterior(
             active_phi_matrix=active_phi_matrix,
             active_alpha_matrix=active_alpha_matrix,

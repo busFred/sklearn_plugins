@@ -38,6 +38,18 @@ class BaseRVM(BaseEstimator, ABC):
         self._weight_posterior_cov_ = None
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "BaseRVM":
+        """Fit the model with the given input data and y
+
+        Args:
+            X (np.ndarray): (n_sampels, n_features) training data.
+            y (np.ndarray): (n_samples, ) target values.
+
+        Raises:
+            ValueError: "y contains classes that has no samples"
+
+        Returns:
+            RVC: this instance.
+        """
         # step 0
         phi_matrix: np.ndarray = self._compute_phi_matrix(X, X)
         # step 1
@@ -102,11 +114,8 @@ class BaseRVM(BaseEstimator, ABC):
         #                                    active_basis_mask=active_basis_mask)
         # return self
 
-
         target_hat: np.ndarray = self._compute_target_hat(
-                active_phi_matrix=active_phi_matrix,
-                beta_matrix=beta_matrix,
-                y=y)
+            active_phi_matrix=active_phi_matrix, beta_matrix=beta_matrix, y=y)
         while True if self._max_iter is None else curr_iter < self._max_iter:
             if self._verbose == True:
                 print(str.format("iter {} ", curr_iter), end="")
@@ -129,13 +138,13 @@ class BaseRVM(BaseEstimator, ABC):
                 beta_matrix=beta_matrix,
                 active_phi_matrix=active_phi_matrix,
                 target=y)
-            target_hat= self._compute_target_hat(
+            target_hat = self._compute_target_hat(
                 active_phi_matrix=active_phi_matrix,
                 beta_matrix=beta_matrix,
                 y=y)
             alpha_matrix, active_basis_mask, active_alpha_matrix = self._update_alpha_matrix(
                 alpha_matrix=alpha_matrix, sparsity=sparsity, quality=quality)
-            
+
             has_converged: bool = self._has_converged(
                 curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
             if has_converged:

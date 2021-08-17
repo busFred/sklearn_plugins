@@ -65,7 +65,6 @@ class RVC(ClassifierMixin, BaseEstimator):
                 break
         return self
 
-    @overrides
     def predict(self, X: np.ndarray) -> np.ndarray:
         prob: np.ndarray = self.predict_proba(X)
         pred: np.ndarray = np.argmax(prob, axis=1)

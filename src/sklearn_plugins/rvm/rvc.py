@@ -1,5 +1,6 @@
+from copy import deepcopy
 from functools import partial
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 from overrides.overrides import overrides
@@ -17,9 +18,11 @@ class RVC(ClassifierMixin, BaseEstimator):
     _max_iter: Union[int, None]
     _verbose: bool
 
-    _relevance_vectors_: Union[np.ndarray, None]  # aka self._X_prime
-    _weight_posterior_mean_: Union[np.ndarray, None]  # aka self._mu
-    _weight_posterior_cov_: Union[np.ndarray, None]  # aka self._sigma
+    _binary_rvc_list_: List[_BinaryRVC]
+
+    # _relevance_vectors_: Union[np.ndarray, None]  # aka self._X_prime
+    # _weight_posterior_mean_: Union[np.ndarray, None]  # aka self._mu
+    # _weight_posterior_cov_: Union[np.ndarray, None]  # aka self._sigma
 
     def __init__(self,
                  kernel_func: Callable[[np.ndarray, np.ndarray],
@@ -36,11 +39,25 @@ class RVC(ClassifierMixin, BaseEstimator):
         self._max_iter = max_iter
         self._verbose = verbose
 
-        self._relevance_vectors_ = None
-        self._weight_posterior_mean_ = None
-        self._weight_posterior_cov_ = None
+        self._binary_rvc_list_ = list()
+        # self._relevance_vectors_ = None
+        # self._weight_posterior_mean_ = None
+        # self._weight_posterior_cov_ = None
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "RVC":
+        if np.any(np.bincount(y) == 0):
+            raise ValueError("y contains class that has no sample")
+        target: np.ndarray = y.astype(int)
+        unique_classes: np.ndarray = np.unique(y).astype(int)
+        for curr_class in unique_classes:
+            curr_target: np.ndarray = np.where(target == curr_class, 1, 0)
+            curr_rvc: _BinaryRVC = _BinaryRVC(kernel_func=self._kernel_func,
+                                              include_bias=self._include_bias,
+                                              tol=self._tol,
+                                              max_iter=self._max_iter,
+                                              verbose=self._verbose)
+            curr_rvc.fit(X=X, y=curr_target)
+            self._binary_rvc_list_.append(curr_rvc)
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:

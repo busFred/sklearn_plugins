@@ -18,7 +18,8 @@ class RVC(ClassifierMixin, BaseEstimator):
     _max_iter: Union[int, None]
     _verbose: bool
 
-    _binary_rvc_list_: List[_BinaryRVC]
+    _binary_rvc_list_: Union[List[_BinaryRVC], None]
+    _n_classes_: Union[int, None]
 
     # _relevance_vectors_: Union[np.ndarray, None]  # aka self._X_prime
     # _weight_posterior_mean_: Union[np.ndarray, None]  # aka self._mu
@@ -39,7 +40,8 @@ class RVC(ClassifierMixin, BaseEstimator):
         self._max_iter = max_iter
         self._verbose = verbose
 
-        self._binary_rvc_list_ = list()
+        self._binary_rvc_list_ = None
+        self._n_classes_ = None
         # self._relevance_vectors_ = None
         # self._weight_posterior_mean_ = None
         # self._weight_posterior_cov_ = None
@@ -49,6 +51,8 @@ class RVC(ClassifierMixin, BaseEstimator):
             raise ValueError("y contains class that has no sample")
         target: np.ndarray = y.astype(int)
         unique_classes: np.ndarray = np.unique(y).astype(int)
+        self._n_classes_ = len(unique_classes)
+        self._binary_rvc_list_ = list()
         for curr_class in unique_classes:
             curr_target: np.ndarray = np.where(target == curr_class, 1, 0)
             curr_rvc: _BinaryRVC = _BinaryRVC(kernel_func=self._kernel_func,
@@ -58,10 +62,32 @@ class RVC(ClassifierMixin, BaseEstimator):
                                               verbose=self._verbose)
             curr_rvc.fit(X=X, y=curr_target)
             self._binary_rvc_list_.append(curr_rvc)
+            if self._n_classes_ == 2:
+                break
         return self
 
+    @overrides
     def predict(self, X: np.ndarray) -> np.ndarray:
-        pass
+        prob: np.ndarray = self.predict_proba(X)
+        pred: np.ndarray = np.argmax(prob, axis=1)
+        return pred
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        n_samples: int = X.shape[0]
+        if self._n_classes_ == 2:
+            pos_prob: np.ndarray = self.binary_rvc_list_[0].predict(X)
+            prob: np.ndarray = np.zeros(shape=(n_samples, 2))
+            prob[:, 0] = pos_prob
+            prob[:, 1] = 1 - pos_prob
+            return prob
+        y: np.ndarray = np.zeros(shape=(n_samples, self.n_classes_))
+        for curr_class in range(self.n_classes_):
+            curr_rvc: _BinaryRVC = self.binary_rvc_list_[curr_class]
+            y[:, curr_class] = curr_rvc.predict_y(X)
+        y = np.exp(y)
+        denominator: np.ndarray = np.sum(y, axis=1, keepdims=True)
+        prob: np.ndarray = y / denominator
+        return prob
 
     @property
     def kernel_func(self) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
@@ -84,22 +110,34 @@ class RVC(ClassifierMixin, BaseEstimator):
         return self._verbose
 
     @property
-    def relevance_vectors_(self) -> np.ndarray:
-        if self._relevance_vectors_ is not None:
-            return self._relevance_vectors_.copy()
-        else:
-            raise ValueError("self._relevance_vectors_ is None")
+    def binary_rvc_list_(self) -> List[_BinaryRVC]:
+        if self._binary_rvc_list_ is not None:
+            return self._binary_rvc_list_
+        raise ValueError("self._binary_rv_list_ is None")
 
     @property
-    def weight_posterior_mean_(self) -> np.ndarray:
-        if self._weight_posterior_mean_ is not None:
-            return self._weight_posterior_mean_.copy()
-        else:
-            raise ValueError("self._weight_posterior_mean_ is None")
+    def n_classes_(self) -> int:
+        if self._n_classes_ is not None:
+            return self._n_classes_
+        raise ValueError("self._n_classes_ is None")
 
-    @property
-    def weight_posterior_cov_(self):
-        if self._weight_posterior_cov_ is not None:
-            return self._weight_posterior_cov_.copy()
-        else:
-            raise ValueError("self._weight_posterior_cov_ is None")
+    # @property
+    # def relevance_vectors_(self) -> np.ndarray:
+    #     if self._relevance_vectors_ is not None:
+    #         return self._relevance_vectors_.copy()
+    #     else:
+    #         raise ValueError("self._relevance_vectors_ is None")
+
+    # @property
+    # def weight_posterior_mean_(self) -> np.ndarray:
+    #     if self._weight_posterior_mean_ is not None:
+    #         return self._weight_posterior_mean_.copy()
+    #     else:
+    #         raise ValueError("self._weight_posterior_mean_ is None")
+
+    # @property
+    # def weight_posterior_cov_(self):
+    #     if self._weight_posterior_cov_ is not None:
+    #         return self._weight_posterior_cov_.copy()
+    #     else:
+    #         raise ValueError("self._weight_posterior_cov_ is None")

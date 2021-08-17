@@ -45,6 +45,18 @@ class RVC(ClassifierMixin, BaseEstimator):
         # self._weight_posterior_cov_ = None
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "RVC":
+        """Fit the model with the given input data and y
+
+        Args:
+            X (np.ndarray): (n_sampels, n_features) training data.
+            y (np.ndarray): (n_samples, ) target values.
+
+        Raises:
+            ValueError: "y contains classes that has no samples"
+
+        Returns:
+            RVC: this instance.
+        """
         if np.any(np.bincount(y) == 0):
             raise ValueError("y contains class that has no sample")
         target: np.ndarray = y.astype(int)
@@ -65,14 +77,30 @@ class RVC(ClassifierMixin, BaseEstimator):
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict labels for the input X.
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) Samples to be predicted.
+
+        Returns:
+            pred (np.ndarray): (n_samples) The class labels of each samples.
+        """
         prob: np.ndarray = self.predict_proba(X)
         pred: np.ndarray = np.argmax(prob, axis=1)
         return pred
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Estimate probability for all samples in input X.
+
+        Args:
+            X (np.ndarray): (n_samples, n_features) Samples to be predicted.
+
+        Returns:
+            prob (np.ndarray): (n_samples, n_classes) The probabily of the samples for each class.
+        """
         n_samples: int = X.shape[0]
         if self._n_classes_ == 2:
-            pos_prob: np.ndarray = self.binary_rvc_list_[0].predict(X)
+            pos_prob: np.ndarray = self.binary_rvc_list_[0].predict_proba(X)
             prob: np.ndarray = np.zeros(shape=(n_samples, 2))
             prob[:, 0] = pos_prob
             prob[:, 1] = 1 - pos_prob

@@ -25,6 +25,12 @@ class _BinaryRVC(BaseRVM):
             active_phi_matrix=phi_matrix)
         return pred
 
+    def predict_y(self, X: np.ndarray) -> np.ndarray:
+        phi_matrix: np.ndarray = self._compute_phi_matrix(
+            X=X, X_prime=self._X_prime)
+        y: np.ndarray = phi_matrix @ self._mu
+        return y
+
     @overrides
     def _init_beta_matrix(self,
                           target: np.ndarray) -> Tuple[np.ndarray, float]:

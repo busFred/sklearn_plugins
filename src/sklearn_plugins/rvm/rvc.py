@@ -19,10 +19,6 @@ class RVC(ClassifierMixin, BaseEstimator):
     _binary_rvc_list_: Union[List[_BinaryRVC], None]
     _n_classes_: Union[int, None]
 
-    # _relevance_vectors_: Union[np.ndarray, None]  # aka self._X_prime
-    # _weight_posterior_mean_: Union[np.ndarray, None]  # aka self._mu
-    # _weight_posterior_cov_: Union[np.ndarray, None]  # aka self._sigma
-
     def __init__(self,
                  kernel_func: Callable[[np.ndarray, np.ndarray],
                                        np.ndarray] = partial(rbf_kernel,
@@ -40,9 +36,6 @@ class RVC(ClassifierMixin, BaseEstimator):
 
         self._binary_rvc_list_ = None
         self._n_classes_ = None
-        # self._relevance_vectors_ = None
-        # self._weight_posterior_mean_ = None
-        # self._weight_posterior_cov_ = None
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "RVC":
         """Fit the model with the given input data and y
@@ -145,24 +138,3 @@ class RVC(ClassifierMixin, BaseEstimator):
         if self._n_classes_ is not None:
             return self._n_classes_
         raise ValueError("self._n_classes_ is None")
-
-    # @property
-    # def relevance_vectors_(self) -> np.ndarray:
-    #     if self._relevance_vectors_ is not None:
-    #         return self._relevance_vectors_.copy()
-    #     else:
-    #         raise ValueError("self._relevance_vectors_ is None")
-
-    # @property
-    # def weight_posterior_mean_(self) -> np.ndarray:
-    #     if self._weight_posterior_mean_ is not None:
-    #         return self._weight_posterior_mean_.copy()
-    #     else:
-    #         raise ValueError("self._weight_posterior_mean_ is None")
-
-    # @property
-    # def weight_posterior_cov_(self):
-    #     if self._weight_posterior_cov_ is not None:
-    #         return self._weight_posterior_cov_.copy()
-    #     else:
-    #         raise ValueError("self._weight_posterior_cov_ is None")

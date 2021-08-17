@@ -114,29 +114,6 @@ class RVR(BaseRVM, RegressorMixin):
         """
         return y
 
-    # @overrides
-    # def _update_weight_posterior(
-    #         self, active_phi_matrix: np.ndarray,
-    #         active_alpha_matrix: np.ndarray, beta_matrix: np.ndarray,
-    #         target_hat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    #     """Compute the "most probable" or "MP" weight posterior statistics
-
-    #     Args:
-    #         target_hat (np.ndarray): (n_samples, ) The target hat vector.
-    #         alpha_matrix_active (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors) The current active alpha matrix.
-    #         beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix
-
-    #     Returns:
-    #         mu (np.ndarray): (n_active_basis_vectors, )The updated weight posterior mean
-    #         sigma_matrix (np.ndarray): (n_active_basis_vectors, n_active_basis_vectors)
-    #     """
-    #     # beta: float = beta_matrix[0, 0]
-    #     sigma_matrix: np.ndarray = np.linalg.inv(
-    #         active_alpha_matrix +
-    #         active_phi_matrix.T @ beta_matrix @ active_phi_matrix)
-    #     mu: np.ndarray = sigma_matrix @ active_phi_matrix.T @ beta_matrix @ target_hat
-    #     return mu, sigma_matrix
-
     @property
     def y_var(self) -> Union[float, None]:
         return self._y_var

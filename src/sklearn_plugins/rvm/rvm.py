@@ -57,14 +57,62 @@ class BaseRVM(BaseEstimator, ABC):
         # step 3 - 8
         prev_alpha: np.ndarray = alpha_matrix.copy()
         curr_iter: int = 0
+        # while True if self._max_iter is None else curr_iter < self._max_iter:
+        #     if self._verbose == True:
+        #         print(str.format("iter {} ", curr_iter), end="")
+        #     # step 3
+        #     target_hat: np.ndarray = self._compute_target_hat(
+        #         active_phi_matrix=active_phi_matrix,
+        #         beta_matrix=beta_matrix,
+        #         y=y)
+        #     self._mu, self._sigma_matrix = self._update_weight_posterior(
+        #         active_phi_matrix=active_phi_matrix,
+        #         active_alpha_matrix=active_alpha_matrix,
+        #         beta_matrix=beta_matrix,
+        #         target_hat=target_hat)
+        #     sparsity, quality = self._compute_sparsity_quality(
+        #         active_basis_mask=active_basis_mask,
+        #         phi_matrix=phi_matrix,
+        #         beta_matrix=beta_matrix,
+        #         target_hat=target_hat)
+        #     # step 4 - 8
+        #     beta_matrix = self._update_beta_matrix(
+        #         active_alpha_matrix=active_alpha_matrix,
+        #         beta_matrix=beta_matrix,
+        #         active_phi_matrix=active_phi_matrix,
+        #         target=y)
+        #     alpha_matrix, active_basis_mask, active_alpha_matrix = self._update_alpha_matrix(
+        #         alpha_matrix=alpha_matrix, sparsity=sparsity, quality=quality)
+        #     active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
+        #         phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
+        #     has_converged: bool = self._has_converged(
+        #         curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
+        #     if has_converged:
+        #         break
+        #     prev_alpha: np.ndarray = alpha_matrix.copy()
+        #     curr_iter = curr_iter + 1
+        # target_hat: np.ndarray = self._compute_target_hat(
+        #     active_phi_matrix=active_phi_matrix, beta_matrix=beta_matrix, y=y)
+        # self._mu, self._sigma_matrix = self._update_weight_posterior(
+        #     active_phi_matrix=active_phi_matrix,
+        #     active_alpha_matrix=active_alpha_matrix,
+        #     beta_matrix=beta_matrix,
+        #     target_hat=target_hat)
+        # self._set_active_relevance_vectors(X=X,
+        #                                    active_basis_mask=active_basis_mask)
+        # return self
+
+
+        target_hat: np.ndarray = self._compute_target_hat(
+                active_phi_matrix=active_phi_matrix,
+                beta_matrix=beta_matrix,
+                y=y)
         while True if self._max_iter is None else curr_iter < self._max_iter:
             if self._verbose == True:
                 print(str.format("iter {} ", curr_iter), end="")
             # step 3
-            target_hat: np.ndarray = self._compute_target_hat(
-                active_phi_matrix=active_phi_matrix,
-                beta_matrix=beta_matrix,
-                y=y)
+            active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
+                phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
             self._mu, self._sigma_matrix = self._update_weight_posterior(
                 active_phi_matrix=active_phi_matrix,
                 active_alpha_matrix=active_alpha_matrix,
@@ -81,18 +129,21 @@ class BaseRVM(BaseEstimator, ABC):
                 beta_matrix=beta_matrix,
                 active_phi_matrix=active_phi_matrix,
                 target=y)
+            target_hat= self._compute_target_hat(
+                active_phi_matrix=active_phi_matrix,
+                beta_matrix=beta_matrix,
+                y=y)
             alpha_matrix, active_basis_mask, active_alpha_matrix = self._update_alpha_matrix(
                 alpha_matrix=alpha_matrix, sparsity=sparsity, quality=quality)
-            active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
-                phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
+            
             has_converged: bool = self._has_converged(
                 curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
             if has_converged:
                 break
             prev_alpha: np.ndarray = alpha_matrix.copy()
             curr_iter = curr_iter + 1
-        target_hat: np.ndarray = self._compute_target_hat(
-            active_phi_matrix=active_phi_matrix, beta_matrix=beta_matrix, y=y)
+        # target_hat: np.ndarray = self._compute_target_hat(
+        #     active_phi_matrix=active_phi_matrix, beta_matrix=beta_matrix, y=y)
         self._mu, self._sigma_matrix = self._update_weight_posterior(
             active_phi_matrix=active_phi_matrix,
             active_alpha_matrix=active_alpha_matrix,

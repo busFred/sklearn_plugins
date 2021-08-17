@@ -89,14 +89,14 @@ class RVR(BaseRVM, RegressorMixin):
         n_samples: int = target.shape[0]
         n_active_basis_vectors: int = active_alpha_matrix.shape[0]
         y = active_phi_matrix @ self._mu
-        loss_norm: float = np.linalg.norm(y - target)
+        loss_norm: float = np.linalg.norm(target - y)
         alpha_diag_vector: np.ndarray = np.diagonal(active_alpha_matrix)
         sigma_diag_vector: np.ndarray = np.diagonal(self._sigma_matrix)
         alpha_diag_dot_cov_diag: float = alpha_diag_vector.T @ sigma_diag_vector
         beta: float = loss_norm**2 / (n_samples - n_active_basis_vectors +
                                       alpha_diag_dot_cov_diag)
         self._y_var_ = 1 / beta
-        beta_matrix = np.diagonal(np.zeros_like(beta_matrix), beta)
+        np.fill_diagonal(beta_matrix, beta)
         return beta_matrix
 
     @overrides

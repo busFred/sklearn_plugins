@@ -76,15 +76,15 @@ class BaseRVM(BaseEstimator, ABC):
                 beta_matrix=beta_matrix,
                 target_hat=target_hat)
             # step 4 - 8
-            alpha_matrix, active_basis_mask, active_alpha_matrix = self._update_alpha_matrix(
-                alpha_matrix=alpha_matrix, sparsity=sparsity, quality=quality)
-            active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
-                phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
             beta_matrix = self._update_beta_matrix(
                 active_alpha_matrix=active_alpha_matrix,
                 beta_matrix=beta_matrix,
                 active_phi_matrix=active_phi_matrix,
                 target=y)
+            alpha_matrix, active_basis_mask, active_alpha_matrix = self._update_alpha_matrix(
+                alpha_matrix=alpha_matrix, sparsity=sparsity, quality=quality)
+            active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
+                phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)
             has_converged: bool = self._has_converged(
                 curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
             if has_converged:

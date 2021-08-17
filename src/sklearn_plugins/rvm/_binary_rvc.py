@@ -1,4 +1,5 @@
 from typing import Callable, Optional, Tuple
+from matplotlib.pyplot import axis
 
 import numpy as np
 from scipy.special import expit as sigmoid
@@ -43,9 +44,10 @@ class _BinaryRVC(BaseRVM):
             beta_matrix (np.ndarray): (n_samples, n_samples) The beta matrix.
             init_beta (float): The initial beta value for self._init_alpha_matrix  function call
         """
-        beta_diag = target.copy().astype(np.float)
+        init_beta: float = np.mean(target)
+        beta_diag: np.ndarray = np.full(shape=target.shape[0],
+                                        fill_value=init_beta)
         beta_matrix: np.ndarray = np.diag(beta_diag)
-        init_beta: float = np.mean(beta_diag)
         return beta_matrix, init_beta
 
     @overrides
@@ -64,6 +66,7 @@ class _BinaryRVC(BaseRVM):
         prob: np.ndarray = self._predict_phi_matrix(
             active_phi_matrix=active_phi_matrix)
         beta_diag: np.ndarray = prob * (1 - prob)
+        beta_diag = np.where(beta_diag == 0.0, 1e-5, beta_diag)
         beta_matrix = np.diag(beta_diag)
         return beta_matrix
 
@@ -84,8 +87,9 @@ class _BinaryRVC(BaseRVM):
         t: np.ndarray = y
         y = self._predict_phi_matrix(active_phi_matrix=active_phi_matrix)
         beta_inv: np.ndarray = np.linalg.inv(beta_matrix)
-        target_hat: np.ndarray = active_phi_matrix @ self._mu + beta_inv @ (t -
-                                                                            y)
+        phi_mu: np.ndarray = active_phi_matrix @ self._mu
+        beta_inv_diff: np.ndarray = beta_inv @ (t - y)
+        target_hat: np.ndarray = phi_mu + beta_inv_diff
         return target_hat
 
     # @overrides

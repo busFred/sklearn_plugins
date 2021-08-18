@@ -19,8 +19,28 @@ from .rvr import RVR
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
 
+
 def rvr_shape_calculator(operator: Operator):
-    pass
+    check_input_and_output_types(
+        operator,
+        good_input_types=[FloatTensorType, DoubleTensorType],
+        good_output_types=[FloatTensorType, DoubleTensorType])
+    op_inputs: List[Variable] = operator.inputs
+    if len(op_inputs) != 1:
+        raise RuntimeError("Only one input matrix is allowed for RVR.")
+    op_outputs: List[Variable] = operator.outputs
+    if len(op_outputs) != 2:
+        raise RuntimeError("Only two outputs are allowed for RVR.")
+    # retrieve rvr inputs dtype
+    input_var_type: DataType = op_inputs[0].type
+    # confirm rvr input and output shape
+    n_samples: int = input_var_type.shape[0]
+    # outputs[0], outputs[1] = rvr.predict_var(X)
+    op_outputs[0].type.shape = [n_samples]
+    op_outputs[0].onnx_name = "y"
+    op_outputs[1].type.shape = [n_samples]
+    op_outputs[1].onnx_name = "y_var"
+
 
 # def spherical_kmeans_shape_calculator(operator: Operator):
 #     """Calculate the input and output shape for SphericalKMeans.
@@ -56,7 +76,6 @@ def rvr_shape_calculator(operator: Operator):
 #     InputVarDtype: Type[DataType] = input_var_type.__class__
 #     # # output[2] = skm_op.score(X)
 #     # op_outputs[2].type = InputVarDtype(shape=[n_samples])
-
 
 # def spherical_kmeans_converter(scope: Scope, operator: Operator,
 #                                container: ModelComponentContainer):
@@ -117,7 +136,6 @@ def rvr_shape_calculator(operator: Operator):
 #                                          axis=1,
 #                                          keepdims=0)
 #     labels_op.add_to(scope=scope, container=container)
-
 
 # TODO implement parser to export intermediate steps.
 # def _spherical_kmeans_parser(scope: Scope,

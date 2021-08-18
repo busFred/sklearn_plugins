@@ -11,7 +11,8 @@ from skl2onnx.common._topology import Operator, Scope, Variable
 from skl2onnx.common.data_types import guess_numpy_type
 from skl2onnx.common.utils import check_input_and_output_types
 from sklearn.preprocessing import Normalizer
-from sklearn_plugins.cluster.spherical_kmeans import SphericalKMeans
+
+from .spherical_kmeans import SphericalKMeans
 
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"

@@ -1,11 +1,15 @@
 """Convert to onnx.
 """
-from typing import List, Type, Union
+from abc import ABC, abstractmethod
+from typing import List, Optional, Type, Union
 
+import numpy as np
 from onnxconverter_common.data_types import (DataType, DoubleTensorType,
                                              FloatTensorType, Int64TensorType)
+from overrides.overrides import overrides
 from skl2onnx.algebra.onnx_operator import OnnxOperator, OnnxSubEstimator
-from skl2onnx.algebra.onnx_ops import OnnxArgMax, OnnxMatMul, OnnxNormalizer
+from skl2onnx.algebra.onnx_ops import (OnnxArgMax, OnnxExp, OnnxMatMul,
+                                       OnnxMul, OnnxSum, OnnxTranspose)
 from skl2onnx.common._container import ModelComponentContainer
 from skl2onnx.common._topology import Operator, Scope, Variable
 from skl2onnx.common.data_types import guess_numpy_type
@@ -18,6 +22,48 @@ from .rvr import RVR
 
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
+
+
+class KernelFunction(ABC):
+    @abstractmethod
+    def __call__(self, X, X_prime):
+        pass
+
+
+class RBFKernelFunction(KernelFunction):
+    __gamma: Union[float, None]
+
+    def __init__(self, gamma: Optional[float]) -> None:
+        self.__gamma = gamma
+
+    def __compute_dist(self, X: Variable, X_prime: np.ndarray) -> OnnxOperator:
+        """
+            For efficiency reasons, the euclidean distance between a pair of row
+            vector x and y is computed as::
+
+                dist(x, y) = sqrt(dot(x, x) - 2 * dot(x, y) + dot(y, y))
+        """
+        Y: np.ndarray = X_prime
+        X_tr: OnnxOperator = OnnxTranspose(X)
+        Y_tr: OnnxOperator = OnnxTranspose(Y)
+        X_tr_X: OnnxOperator = OnnxMatMul(X_tr, X)
+        Y_tr_Y: OnnxOperator = OnnxMatMul(Y_tr, Y)
+        X_tr_Y: OnnxOperator = OnnxMatMul(X_tr, Y)
+        two_X_tr_Y: OnnxOperator = OnnxMul(2.0, X_tr_Y)
+        dist: OnnxOperator = OnnxSum([X_tr_X, two_X_tr_Y, Y_tr_Y])
+        return dist
+
+    @overrides
+    def __call__(self, X: Variable, X_prime: np.ndarray):
+        gamma: float
+        if self.__gamma is None:
+            gamma = 1.0 / X.type.shape[1]
+        else:
+            gamma = self.__gamma
+        dist: OnnxOperator = self.__compute_dist(X, X_prime)
+        neg_gamma_dist: OnnxOperator = OnnxMul(-1.0 * gamma, dist)
+        rbf: OnnxOperator = OnnxExp(neg_gamma_dist)
+        return rbf
 
 
 def rvr_shape_calculator(operator: Operator):
@@ -42,40 +88,11 @@ def rvr_shape_calculator(operator: Operator):
     op_outputs[1].onnx_name = "y_var"
 
 
-# def spherical_kmeans_shape_calculator(operator: Operator):
-#     """Calculate the input and output shape for SphericalKMeans.
+def rvr_converter(scope: Scope, operator: Operator,
+                  container: ModelComponentContainer):
 
-#     Args:
-#         operator (Operator): An Operator container.
-#     """
-#     check_input_and_output_types(
-#         operator,
-#         good_input_types=[FloatTensorType, DoubleTensorType],
-#         good_output_types=[Int64TensorType, FloatTensorType, DoubleTensorType])
-#     op_inputs: List[Variable] = operator.inputs
-#     if len(op_inputs) != 1:
-#         raise RuntimeError(
-#             "Only one input matrix is allowed for SphericalKMeans.")
-#     op_outputs: List[Variable] = operator.outputs
-#     if len(op_outputs) != 2:
-#         raise RuntimeError("Two outputs are expected for SphericalKMeans.")
-#     skm: SphericalKMeans = operator.raw_operator
-#     # retrieve skm inputs dtype
-#     input_var_type: DataType = op_inputs[0].type
-#     # retrieve skm inputs outputs shape
-#     n_samples: int = input_var_type.shape[0]
-#     n_clusters: int = skm.n_clusters
-#     # output[0] = skm_op.fit_predict(X)
-#     op_outputs[0].type.shape = [n_samples]
-#     op_outputs[0].onnx_name = "label"
-#     # output[1] = skm_op.fit_transform(X)
-#     op_outputs[1].type.shape = [n_samples, n_clusters]
-#     op_outputs[1].onnx_name = "proj"
-#     # TODO move to optioanl output according to custom_parsers
-#     # type alias
-#     InputVarDtype: Type[DataType] = input_var_type.__class__
-#     # # output[2] = skm_op.score(X)
-#     # op_outputs[2].type = InputVarDtype(shape=[n_samples])
+    pass
+
 
 # def spherical_kmeans_converter(scope: Scope, operator: Operator,
 #                                container: ModelComponentContainer):

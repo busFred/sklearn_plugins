@@ -1,10 +1,8 @@
-from functools import partial
 from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from overrides import overrides
 from sklearn.base import RegressorMixin
-from sklearn.metrics.pairwise import rbf_kernel
 
 from ..kernels.kernel_base import KernelBase
 from ..kernels.rbf import RBFKernel

@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
-from functools import partial
 from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from sklearn.base import BaseEstimator
-from sklearn.metrics.pairwise import rbf_kernel
+
+from ..kernels.kernel_base import KernelBase
+from ..kernels.rbf import RBFKernel
 
 
 class BaseRVM(BaseEstimator, ABC):
-    _kernel_func: Callable[[np.ndarray, np.ndarray], np.ndarray]
+    _kernel_func: Union[KernelBase, Callable[[np.ndarray, np.ndarray],
+                                             np.ndarray]]
     _include_bias: bool
     _tol: float
     _max_iter: Union[int, None]
@@ -19,9 +21,9 @@ class BaseRVM(BaseEstimator, ABC):
     _weight_posterior_cov_: Union[np.ndarray, None]  # aka self._sigma
 
     def __init__(self,
-                 kernel_func: Callable[[np.ndarray, np.ndarray],
-                                       np.ndarray] = partial(rbf_kernel,
-                                                             gamma=None),
+                 kernel_func: Union[KernelBase,
+                                    Callable[[np.ndarray, np.ndarray],
+                                             np.ndarray]] = RBFKernel(),
                  include_bias: bool = True,
                  tol: float = 1e-3,
                  max_iter: Optional[int] = None,
@@ -396,7 +398,9 @@ class BaseRVM(BaseEstimator, ABC):
 
     # public properties
     @property
-    def kernel_func(self) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    def kernel_func(
+        self
+    ) -> Union[KernelBase, Callable[[np.ndarray, np.ndarray], np.ndarray]]:
         return self._kernel_func
 
     @property

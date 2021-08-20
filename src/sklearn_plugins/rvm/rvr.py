@@ -138,3 +138,13 @@ class RVR(BaseRVM, RegressorMixin):
     @property
     def update_y_var(self) -> bool:
         return self._update_y_var
+
+
+from skl2onnx import update_registered_converter
+
+from ._onnx_transfrom import rvr_converter, rvr_shape_calculator
+
+update_registered_converter(RVR,
+                            "SklearnPluginsRVR",
+                            shape_fct=rvr_shape_calculator,
+                            convert_fct=rvr_converter)

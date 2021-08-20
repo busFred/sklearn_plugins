@@ -12,11 +12,9 @@ from skl2onnx.common._topology import Operator, Scope, Variable
 from skl2onnx.common.data_types import guess_numpy_type
 from skl2onnx.common.utils import check_input_and_output_types
 
-from sklearn_plugins import rvm
-
 from ..kernels.kernel_base import KernelBase
-from .rvr import RVR
 from .rvm import BaseRVM
+from .rvr import RVR
 
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"

@@ -1,0 +1,74 @@
+#%%
+import traceback
+from functools import partial, update_wrapper
+
+import matplotlib.pyplot as plt
+import numpy as np
+import onnxruntime as rt
+from onnx import ModelProto
+from skl2onnx import update_registered_converter
+from skl2onnx.common._container import ModelComponentContainer
+from skl2onnx.common._topology import Operator, Scope
+from skl2onnx.convert import to_onnx
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+from sklearn_plugins.rvm.onnx_transfrom import (RBFKernelFunction,
+                                                rvr_converter,
+                                                rvr_shape_calculator)
+from sklearn_plugins.rvm.rvr import RVR
+
+
+#%%
+def converter(scope: Scope, operator: Operator,
+              container: ModelComponentContainer):
+    rvr_converter(scope=scope,
+                  operator=operator,
+                  container=container,
+                  kernel_func=RBFKernelFunction())
+
+
+update_registered_converter(RVR,
+                            "SklearnPluginsRVR",
+                            shape_fct=rvr_shape_calculator,
+                            convert_fct=converter)
+#%%
+N_SAMPLES: int = 5000
+
+#%%
+np.random.seed(0)
+Xc = np.ones([N_SAMPLES, 1])
+Xc[:, 0] = np.linspace(-5, 5, N_SAMPLES)
+Yc = 10 * np.sinc(Xc[:, 0]) + np.random.normal(0, 1, N_SAMPLES)
+X_train, X_val, y_train, y_val = train_test_split(Xc,
+                                                  Yc,
+                                                  test_size=0.5,
+                                                  random_state=0)
+
+#%%
+rvr: RVR = RVR(max_iter=100, verbose=True, update_y_var=True)
+rvr.fit(X=X_train, y=y_train)
+
+#%%
+"""
+Both float and double works with skl2onnx 1.9.1.dev
+"""
+onx: ModelProto
+onx = to_onnx(rvr, X_train.astype(np.float32), target_opset=13)
+
+#%%
+with open("rvr.onnx", "wb") as file:
+    file.write(onx.SerializeToString())
+
+#%%
+sess = rt.InferenceSession(onx.SerializeToString())
+results = sess.run(None, {'X': X_train.astype(np.float32)})
+
+#%%
+pred_train = rvr.predict(X=X_train)
+mse_train: float = mean_squared_error(y_true=y_train, y_pred=pred_train)
+print(str.format("mse_train: {}", mse_train))
+
+#%%
+pred_val = rvr.predict(X=X_val)
+mse_val: float = mean_squared_error(y_true=y_val, y_pred=pred_train)
+print(str.format("mse_val: {}", mse_val))

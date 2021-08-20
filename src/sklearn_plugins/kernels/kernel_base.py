@@ -11,7 +11,10 @@ class KernelBase(ABC):
         super().__init__()
 
     @abstractmethod
-    def __call__(self, X: np.ndarray, X_prime: np.ndarray) -> np.ndarray:
+    def __call__(self,
+                 X: np.ndarray,
+                 X_prime: np.ndarray,
+                 fit: bool = False) -> np.ndarray:
         pass
 
     @abstractmethod

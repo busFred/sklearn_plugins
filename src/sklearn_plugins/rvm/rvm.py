@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Optional, Tuple, Union
+from copy import deepcopy
 
 import numpy as np
 from sklearn.base import BaseEstimator
@@ -29,7 +30,7 @@ class BaseRVM(BaseEstimator, ABC):
                  max_iter: Optional[int] = None,
                  verbose: bool = False) -> None:
         super().__init__()
-        self._kernel_func = kernel_func
+        self._kernel_func = deepcopy(kernel_func)
         self._include_bias = include_bias
         self._tol = tol
         self._max_iter = max_iter
@@ -53,7 +54,9 @@ class BaseRVM(BaseEstimator, ABC):
             RVC: this instance.
         """
         # step 0
-        phi_matrix: np.ndarray = self._compute_phi_matrix(X, X)
+        phi_matrix: np.ndarray = self._compute_phi_matrix(X,
+                                                          X,
+                                                          is_first_fit=True)
         # step 1
         beta_matrix, init_beta = self._init_beta_matrix(target=y)
         # step 2
@@ -122,18 +125,25 @@ class BaseRVM(BaseEstimator, ABC):
     def predict(self, X: np.ndarray):
         pass
 
-    def _compute_phi_matrix(self, X: np.ndarray,
-                            X_prime: np.ndarray) -> np.ndarray:
+    def _compute_phi_matrix(self,
+                            X: np.ndarray,
+                            X_prime: np.ndarray,
+                            is_first_fit: bool = False) -> np.ndarray:
         """Compute phi_matrix.
 
         Args:
             X (np.ndarray): (n_new_samples n_features) During inference, `X` is the new input vectors. 
             X_prime (np.ndarray): (n_samples, n_basis_vectors) or (N, M) in 2003 Tipphing. During inference, `X` is the `self._relevance_vectors_`.
+            is_first_fit (bool): Whether or not this is the first call in the fit method. This parameter is passed to kernel function in case of kernel function is dependent on the data. Defaults to False.
 
         Returns:
             phi_matrix (np.ndarray): (n_new_samples, n_samples) The computed phi_matrix.
         """
-        phi_matrix: np.ndarray = self._kernel_func(X, X_prime)
+        phi_matrix: np.ndarray
+        if isinstance(self._kernel_func, KernelBase):
+            phi_matrix = self._kernel_func(X, X_prime, fit=is_first_fit)
+        else:
+            phi_matrix = self._kernel_func(X, X_prime)
         if self._include_bias == True:
             n_samples: int = phi_matrix.shape[0]
             phi_matrix = np.append(phi_matrix,

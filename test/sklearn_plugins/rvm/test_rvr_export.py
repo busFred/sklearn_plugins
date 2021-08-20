@@ -1,6 +1,7 @@
 #%%
 import traceback
 from functools import partial, update_wrapper
+from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,7 +54,7 @@ rvr.fit(X=X_train, y=y_train)
 Both float and double works with skl2onnx 1.9.1.dev
 """
 onx: ModelProto
-onx = to_onnx(rvr, X_train.astype(np.float32), target_opset=13)
+onx = to_onnx(rvr, X_train.astype(np.float64), target_opset=13)
 
 #%%
 with open("rvr.onnx", "wb") as file:
@@ -61,14 +62,24 @@ with open("rvr.onnx", "wb") as file:
 
 #%%
 sess = rt.InferenceSession(onx.SerializeToString())
-results = sess.run(None, {'X': X_train.astype(np.float32)})
+results: List[np.ndarray] = sess.run(None, {'X': X_train.astype(np.float64)})
+onnx_pred_train: np.ndarray = results[0]
 
 #%%
 pred_train = rvr.predict(X=X_train)
 mse_train: float = mean_squared_error(y_true=y_train, y_pred=pred_train)
 print(str.format("mse_train: {}", mse_train))
+print(
+    str.format("pred_train - onnx_pred = {}",
+               np.sum(np.abs(pred_train - onnx_pred_train))))
 
 #%%
+results: List[np.ndarray] = sess.run(None, {'X': X_val.astype(np.float64)})
+onnx_pred_val: np.ndarray = results[0]
+#%%
 pred_val = rvr.predict(X=X_val)
-mse_val: float = mean_squared_error(y_true=y_val, y_pred=pred_train)
+mse_val: float = mean_squared_error(y_true=y_val, y_pred=pred_val)
 print(str.format("mse_val: {}", mse_val))
+print(
+    str.format("pred_val - onnx_pred = {}",
+               np.sum(np.abs(pred_val - onnx_pred_val))))

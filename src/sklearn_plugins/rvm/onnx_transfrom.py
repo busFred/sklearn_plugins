@@ -26,6 +26,7 @@ __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
 
 
+# TODO support y_var output
 def rvr_shape_calculator(operator: Operator):
     check_input_and_output_types(
         operator,
@@ -51,38 +52,13 @@ def rvr_shape_calculator(operator: Operator):
 
 
 class KernelFunction(ABC):
-    # __TensorType_: Union[Type[TensorType], None]
-    # __NumPyType_: Union[Type, None]
-
     def __init__(self) -> None:
         super().__init__()
-        # self.__TensorType_ = None
-        # self.__NumPyType_ = None
 
     @abstractmethod
     def __call__(self, X: Variable, X_prime: np.ndarray,
                  op_version: Union[int, None]) -> OnnxOperator:
         pass
-
-    # @property
-    # def TensorType_(self):
-    #     if self.__TensorType_ is not None:
-    #         return self.__TensorType_
-    #     raise ValueError("self.__TensorType is None")
-
-    # @TensorType_.setter
-    # def TensorType_(self, type: Type[TensorType]):
-    #     self.__TensorType_ = type
-
-    # @property
-    # def NumpyType_(self):
-    #     if self.__NumPyType_ is not None:
-    #         return self.__NumPyType_
-    #     raise ValueError("self.__NumPyType_ is None")
-
-    # @NumpyType_.setter
-    # def NumpyType_(self, type: Type):
-    #     self.__NumPyType_ = type
 
 
 class RBFKernelFunction(KernelFunction):
@@ -91,7 +67,6 @@ class RBFKernelFunction(KernelFunction):
     def __init__(self, gamma: Optional[float] = None) -> None:
         self.__gamma = gamma
 
-    # TODO error
     def __compute_dist(self, X: Variable, X_prime: np.ndarray,
                        op_version: Union[int, None]) -> OnnxOperator:
         """

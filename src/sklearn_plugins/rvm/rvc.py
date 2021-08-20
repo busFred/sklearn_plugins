@@ -1,10 +1,10 @@
-from functools import partial
 from typing import Callable, List, Optional, Union
 
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.metrics.pairwise import rbf_kernel
 
+from ..kernels.kernel_base import KernelBase
+from ..kernels.rbf import RBFKernel
 from ._binary_rvc import _BinaryRVC
 
 
@@ -20,9 +20,9 @@ class RVC(ClassifierMixin, BaseEstimator):
     _n_classes_: Union[int, None]
 
     def __init__(self,
-                 kernel_func: Callable[[np.ndarray, np.ndarray],
-                                       np.ndarray] = partial(rbf_kernel,
-                                                             gamma=None),
+                 kernel_func: Union[KernelBase,
+                                    Callable[[np.ndarray, np.ndarray],
+                                             np.ndarray]] = RBFKernel(),
                  include_bias: bool = True,
                  tol: float = 1e-3,
                  max_iter: Optional[int] = None,

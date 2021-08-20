@@ -6,6 +6,8 @@ from overrides import overrides
 from sklearn.base import RegressorMixin
 from sklearn.metrics.pairwise import rbf_kernel
 
+from ..kernels.kernel_base import KernelBase
+from ..kernels.rbf import RBFKernel
 from .rvm import BaseRVM
 
 
@@ -16,9 +18,9 @@ class RVR(BaseRVM, RegressorMixin):
     _y_var_: float
 
     def __init__(self,
-                 kernel_func: Callable[[np.ndarray, np.ndarray],
-                                       np.ndarray] = partial(rbf_kernel,
-                                                             gamma=None),
+                 kernel_func: Union[KernelBase,
+                                    Callable[[np.ndarray, np.ndarray],
+                                             np.ndarray]] = RBFKernel(),
                  y_var: Optional[float] = None,
                  update_y_var: bool = False,
                  include_bias: bool = True,

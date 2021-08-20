@@ -6,7 +6,7 @@ from skl2onnx.algebra.onnx_operator import OnnxOperator
 from skl2onnx.common._topology import Variable
 
 
-class KernelFunction(ABC):
+class KernelBase(ABC):
     def __init__(self) -> None:
         super().__init__()
 

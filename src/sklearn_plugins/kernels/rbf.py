@@ -8,11 +8,11 @@ from skl2onnx.common._topology import Variable
 from skl2onnx.common.data_types import guess_numpy_type
 from sklearn.metrics.pairwise import rbf_kernel
 
-from .kernel_base import KernelFunction
+from .kernel_base import KernelBase
 from .utils import compute_dist_onnx
 
 
-class RBFKernel(KernelFunction):
+class RBFKernel(KernelBase):
     __gamma: Union[float, None]
 
     def __init__(self, gamma: Optional[float] = None) -> None:

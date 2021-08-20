@@ -1,37 +1,14 @@
 #%%
-import traceback
-from functools import partial, update_wrapper
 from typing import List
 
-import matplotlib.pyplot as plt
 import numpy as np
 import onnxruntime as rt
 from onnx import ModelProto
-from skl2onnx import update_registered_converter
-from skl2onnx.common._container import ModelComponentContainer
-from skl2onnx.common._topology import Operator, Scope
 from skl2onnx.convert import to_onnx
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-from sklearn_plugins.rvm.onnx_transfrom import (RBFKernelFunction,
-                                                rvr_converter,
-                                                rvr_shape_calculator)
 from sklearn_plugins.rvm.rvr import RVR
 
-
-#%%
-def converter(scope: Scope, operator: Operator,
-              container: ModelComponentContainer):
-    rvr_converter(scope=scope,
-                  operator=operator,
-                  container=container,
-                  kernel_func=RBFKernelFunction())
-
-
-update_registered_converter(RVR,
-                            "SklearnPluginsRVR",
-                            shape_fct=rvr_shape_calculator,
-                            convert_fct=converter)
 #%%
 N_SAMPLES: int = 5000
 

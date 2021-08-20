@@ -71,5 +71,5 @@ def _get_kernel_function(rvm: BaseRVM) -> KernelBase:
     if isinstance(rvm.kernel_func, KernelBase):
         return rvm.kernel_func
     raise ValueError(
-        "rvm.kernel_func is not an instance of BaseRVM, and therefore ineligible for conversion"
+        "rvm.kernel_func is not an instance of kernels.KernelBase, and therefore ineligible for conversion"
     )

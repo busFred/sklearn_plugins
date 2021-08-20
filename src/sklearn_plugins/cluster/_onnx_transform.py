@@ -90,13 +90,13 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
     if skm.normalize == True:
         normalize_op = OnnxSubEstimator(Normalizer(norm="l2"),
                                         normalize_op,
-                                        op_versionrow_norms=op_version)
+                                        op_version=op_version)
     # standardize input
     std_scalar_op: Union[OnnxOperator, Variable] = normalize_op
     if skm.standardize == True:
         std_scalar_op = OnnxSubEstimator(skm.std_scalar_,
                                          normalize_op,
-                                         op_versionrow_norms=op_version)
+                                         op_version=op_version)
     # pca whitening
     pca_op: OnnxOperator = OnnxSubEstimator(skm.pca_,
                                             std_scalar_op,

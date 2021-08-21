@@ -12,7 +12,6 @@ from skl2onnx.common.data_types import guess_numpy_type
 from skl2onnx.common.utils import check_input_and_output_types
 from sklearn.preprocessing import Normalizer
 
-from .spherical_kmeans import SphericalKMeans
 
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
@@ -24,6 +23,7 @@ def spherical_kmeans_shape_calculator(operator: Operator):
     Args:
         operator (Operator): An Operator container.
     """
+    from .spherical_kmeans import SphericalKMeans
     check_input_and_output_types(
         operator,
         good_input_types=[FloatTensorType, DoubleTensorType],
@@ -79,6 +79,7 @@ def spherical_kmeans_converter(scope: Scope, operator: Operator,
         operator (Operator): [description]
         container (ModelComponentContainer): [description]
     """
+    from .spherical_kmeans import SphericalKMeans
     skm: SphericalKMeans = operator.raw_operator
     op_version: Union[int, None] = container.target_opset
     op_outputs: List[Variable] = operator.outputs

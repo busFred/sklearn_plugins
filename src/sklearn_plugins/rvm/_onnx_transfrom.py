@@ -4,9 +4,10 @@ from typing import List, Type, Union
 
 import numpy as np
 from onnxconverter_common.data_types import (DataType, DoubleTensorType,
-                                             FloatTensorType)
-from skl2onnx.algebra.onnx_operator import OnnxOperator
-from skl2onnx.algebra.onnx_ops import OnnxMatMul, OnnxPad
+                                             FloatTensorType, Int64TensorType)
+from skl2onnx.algebra.onnx_operator import OnnxOperator, OnnxSubEstimator
+from skl2onnx.algebra.onnx_ops import (OnnxArgMax, OnnxConcatFromSequence,
+                                       OnnxMatMul, OnnxPad, OnnxSoftmax)
 from skl2onnx.common._container import ModelComponentContainer
 from skl2onnx.common._topology import Operator, Scope, Variable
 from skl2onnx.common.data_types import guess_numpy_type
@@ -14,7 +15,6 @@ from skl2onnx.common.utils import check_input_and_output_types
 
 from ..kernels.kernel_base import KernelBase
 from .rvm import BaseRVM
-from .rvr import RVR
 
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
@@ -47,6 +47,7 @@ def rvr_shape_calculator(operator: Operator):
 
 def rvr_converter(scope: Scope, operator: Operator,
                   container: ModelComponentContainer):
+    from .rvr import RVR
     rvr: RVR = operator.raw_operator
     input: Variable = operator.inputs[0]
     NumPyType: Type = guess_numpy_type(input.type)
@@ -65,6 +66,63 @@ def rvr_converter(scope: Scope, operator: Operator,
                                  op_version=op_version,
                                  output_names=[op_outputs[0]])
     y.add_to(scope=scope, container=container)
+
+
+def rvc_shape_calculator(operator: Operator):
+    from .rvc import RVC
+    check_input_and_output_types(
+        operator,
+        good_input_types=[FloatTensorType, DoubleTensorType],
+        good_output_types=[FloatTensorType, DoubleTensorType])
+    op_inputs: List[Variable] = operator.inputs
+    if len(op_inputs) != 1:
+        raise RuntimeError("Only one input matrix is allowed for RVC.")
+    op_outputs: List[Variable] = operator.outputs
+    if len(op_outputs) != 2:
+        raise RuntimeError("Only two outputs are allowed for RVC.")
+    # retrieve rvc inputs dtype
+    input_var_type: Union[FloatTensorType,
+                          DoubleTensorType] = op_inputs[0].type
+    # confirm rvc input and output shape
+    n_samples: int = input_var_type.shape[0]
+    # outputs[0] = rvc.predict(X)
+    op_outputs[0].type = Int64TensorType(shape=[n_samples])
+    op_outputs[0].onnx_name = "labels"
+    # outputs[1] = rvc.predict_proba(X)
+    rvc: RVC = operator.raw_operator
+    n_classes: int = rvc.n_classes_
+    ModelTensorType: Union[Type[FloatTensorType],
+                           Type[DoubleTensorType]] = input_var_type.__class__
+    op_outputs[1].type = ModelTensorType(shape=[n_samples, n_classes])
+    op_outputs[1].onnx_name = "probabilities"
+
+
+def rvc_converter(scope: Scope, operator: Operator,
+                  container: ModelComponentContainer):
+    from .rvc import RVC
+    rvc: RVC = operator.raw_operator
+    input: Variable = operator.inputs[0]
+    op_outputs: List[Variable] = operator.outputs
+    op_version: Union[int, None] = container.target_opset
+    y_list: List[OnnxSubEstimator] = [
+        OnnxSubEstimator(bsvc, input, op_version=op_version)
+        for bsvc in rvc.binary_rvc_list_
+    ]
+    y_matrix: OnnxOperator = OnnxConcatFromSequence(y_list,
+                                                    axis=1,
+                                                    newaxis=1,
+                                                    op_version=op_version)
+    probs: OnnxOperator = OnnxSoftmax(y_matrix,
+                                      axis=1,
+                                      op_version=op_version,
+                                      output_names=[op_outputs[1]])
+    probs.add_to(scope=scope, container=container)
+    labels: OnnxOperator = OnnxArgMax(probs,
+                                      axis=1,
+                                      keepdims=0,
+                                      op_version=op_version,
+                                      output_names=[op_outputs[0]])
+    labels.add_to(scope=scope, container=container)
 
 
 def _get_kernel_function(rvm: BaseRVM) -> KernelBase:

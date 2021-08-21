@@ -31,7 +31,7 @@ rvr.fit(X=X_train, y=y_train)
 Both float and double works with skl2onnx 1.9.1.dev
 """
 onx: ModelProto
-onx = to_onnx(rvr, X_train.astype(np.float64), target_opset=13)
+onx = to_onnx(rvr, X_train[:1,:].astype(np.float64), target_opset=13)
 
 #%%
 with open("rvr.onnx", "wb") as file:
@@ -60,3 +60,14 @@ print(str.format("mse_val: {}", mse_val))
 print(
     str.format("pred_val - onnx_pred = {}",
                np.sum(np.abs(pred_val - onnx_pred_val))))
+
+#%%
+test = X_val[0:1, :]
+print(test)
+results: List[np.ndarray] = sess.run(None, {'X': test.astype(np.float64)})
+onnx_pred_single: np.ndarray = results[0]
+print(onnx_pred_val)
+pred_single: np.ndarray = rvr.predict(test)
+print(pred_single)
+
+# %%

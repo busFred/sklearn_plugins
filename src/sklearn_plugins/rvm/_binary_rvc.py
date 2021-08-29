@@ -132,3 +132,13 @@ class _BinaryRVC(BaseRVM):
         y: np.ndarray = active_phi_matrix @ self._mu
         pred: np.ndarray = sigmoid(y)
         return pred
+
+
+from skl2onnx import update_registered_converter
+
+from ._onnx_transfrom import rvr_converter, rvr_shape_calculator
+
+update_registered_converter(_BinaryRVC,
+                            "SklearnPlugins_BinaryRVC",
+                            shape_fct=rvr_shape_calculator,
+                            convert_fct=rvr_converter)

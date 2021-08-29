@@ -138,3 +138,13 @@ class RVC(ClassifierMixin, BaseEstimator):
         if self._n_classes_ is not None:
             return self._n_classes_
         raise ValueError("self._n_classes_ is None")
+
+
+from skl2onnx import update_registered_converter
+
+from ._onnx_transfrom import rvc_converter, rvc_shape_calculator
+
+update_registered_converter(RVC,
+                            "SklearnPluginsRVC",
+                            shape_fct=rvc_shape_calculator,
+                            convert_fct=rvc_converter)

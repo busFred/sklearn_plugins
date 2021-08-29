@@ -12,7 +12,6 @@ from skl2onnx.common.data_types import guess_numpy_type
 from skl2onnx.common.utils import check_input_and_output_types
 from sklearn.preprocessing import Normalizer
 
-
 __author__ = "Hung-Tien Huang"
 __copyright__ = "Copyright 2021, Hung-Tien Huang"
 
@@ -43,10 +42,10 @@ def spherical_kmeans_shape_calculator(operator: Operator):
     n_clusters: int = skm.n_clusters
     # output[0] = skm_op.fit_predict(X)
     op_outputs[0].type.shape = [n_samples]
-    op_outputs[0].onnx_name = "label"
+    op_outputs[0].set_onnx_name("label")
     # output[1] = skm_op.fit_transform(X)
     op_outputs[1].type.shape = [n_samples, n_clusters]
-    op_outputs[1].onnx_name = "proj"
+    op_outputs[1].set_onnx_name("proj")
     # TODO move to optioanl output according to custom_parsers
     # type alias
     InputVarDtype: Type[DataType] = input_var_type.__class__

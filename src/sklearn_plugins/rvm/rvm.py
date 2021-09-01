@@ -1,6 +1,7 @@
+import gc
 from abc import ABC, abstractmethod
-from typing import Callable, Optional, Tuple, Union
 from copy import deepcopy
+from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from sklearn.base import BaseEstimator
@@ -72,7 +73,8 @@ class BaseRVM(BaseEstimator, ABC):
         self._init_weight_posterior(
             n_active_basis_vectors=n_active_basis_vectors)
         # step 3 - 8
-        prev_alpha: np.ndarray = alpha_matrix.copy()
+        # prev_alpha: np.ndarray = alpha_matrix.copy()
+        prev_alpha: np.ndarray = alpha_matrix
         curr_iter: int = 0
         target_hat: np.ndarray = self._compute_target_hat(
             active_phi_matrix=active_phi_matrix, beta_matrix=beta_matrix, y=y)
@@ -106,9 +108,11 @@ class BaseRVM(BaseEstimator, ABC):
                 alpha_matrix=alpha_matrix, sparsity=sparsity, quality=quality)
             has_converged: bool = self._has_converged(
                 curr_alpha_matrix=alpha_matrix, prev_alpha_matrix=prev_alpha)
+            gc.collect()
             if has_converged:
                 break
-            prev_alpha: np.ndarray = alpha_matrix.copy()
+            # prev_alpha: np.ndarray = alpha_matrix.copy()
+            prev_alpha: np.ndarray = alpha_matrix
             curr_iter = curr_iter + 1
         active_phi_matrix: np.ndarray = self._get_active_phi_matrix(
             phi_matrix=phi_matrix, active_basis_mask=active_basis_mask)

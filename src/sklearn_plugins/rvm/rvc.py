@@ -1,3 +1,4 @@
+import gc
 from typing import Callable, List, Optional, Union
 
 import numpy as np
@@ -64,6 +65,7 @@ class RVC(ClassifierMixin, BaseEstimator):
                                               max_iter=self._max_iter,
                                               verbose=self._verbose)
             curr_rvc.fit(X=X, y=curr_target)
+            gc.collect()
             self._binary_rvc_list_.append(curr_rvc)
             if self._n_classes_ == 2:
                 break
